@@ -1,0 +1,9 @@
+work/
+outputs/
+node_modules/
+.DS_Store
+Thumbs.db
+*.log
+*.zip
+*完整备份*.json
+*个人备份*.json

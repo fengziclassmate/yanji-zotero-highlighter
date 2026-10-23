@@ -1,0 +1,79 @@
+{
+  "format": "yanji-config",
+  "version": 1,
+  "settings": {
+    "categories": [
+      {
+        "color": "#ffd400",
+        "id": "content",
+        "meaning": "",
+        "name": "Content"
+      },
+      {
+        "color": "#7BC289",
+        "id": "challenge",
+        "meaning": "",
+        "name": "Challenge"
+      },
+      {
+        "color": "#2ea8e5",
+        "id": "cons",
+        "meaning": "",
+        "name": "Cons"
+      },
+      {
+        "color": "#f19837",
+        "id": "worth",
+        "meaning": "",
+        "name": "Worth"
+      },
+      {
+        "color": "#e56eee",
+        "id": "cite-useful",
+        "meaning": "",
+        "name": "Cite_Useful"
+      },
+      {
+        "color": "#a28ae5",
+        "id": "terms",
+        "meaning": "",
+        "name": "Terms"
+      },
+      {
+        "color": "#aaaaaa",
+        "id": "jot",
+        "meaning": "",
+        "name": "Jot"
+      },
+      {
+        "color": "#ff6666",
+        "id": "unclear",
+        "meaning": "",
+        "name": "Unclear"
+      },
+      {
+        "color": "#953984",
+        "id": "mark",
+        "meaning": "",
+        "name": "Mark"
+      }
+    ],
+    "defaultCategory": "content",
+    "quickCount": 3,
+    "style": "both",
+    "navDots": true,
+    "badge": true,
+    "continuous": false,
+    "shortcuts": false,
+    "showEnglish": true,
+    "noteTitle": "网页阅读标注",
+    "autoSyncOnOpen": true,
+    "toolbarExpanded": true,
+    "toolbarOpacity": 0.88,
+    "buttonSize": 28,
+    "toolbarWidth": 442,
+    "toolbarHeight": 115,
+    "editorWidth": 360,
+    "editorHeight": 0
+  }
+}
