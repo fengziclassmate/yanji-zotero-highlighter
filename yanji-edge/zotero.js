@@ -6,7 +6,7 @@
   async function request(path, options = {}) {
     let response;
     try {
-      response = await fetch(base + path, { ...options, headers: { "Zotero-API-Version": "3", "Zotero-Allowed-Request": "true", ...options.headers }, signal: AbortSignal.timeout(options.authorizing ? 120000 : 20000) });
+      response = await fetch(base + path, { ...options, headers: { "Zotero-API-Version": "3", "Zotero-Allowed-Request": "true", ...options.headers }, signal: AbortSignal.timeout(options.timeout || (options.authorizing ? 120000 : 20000)) });
     } catch (error) {
       throw Object.assign(new Error(options.authorizing ? "Zotero 授权未完成。请在 Zotero 窗口确认后重试。" : "连接不到 Zotero。请打开 Zotero 10，并启用：设置 → 高级 → 允许此计算机上的其他应用程序与 Zotero 通信。", { cause: error }), { code: "OFFLINE" });
     }
@@ -15,6 +15,7 @@
     return { response, data };
   }
   async function connect() {
+    if (!(await chrome.permissions.contains({origins:chrome.runtime.getManifest().host_permissions}))) throw Object.assign(new Error("Edge 尚未允许访问本机 Zotero。请点击侧栏 Zotero 右侧的‘检查连接’并允许访问。"),{code:"HOST_PERMISSION_REQUIRED"});
     const result = await request("");
     if (!result.response.ok) throw new Error(`Zotero 本地接口返回 ${result.response.status}。请检查本地通信设置。`);
     const serverID = result.response.headers.get("Zotero-Server-ID");
@@ -73,5 +74,11 @@
     }
     return [...found.values()];
   }
-  globalThis.YanjiZotero = { connect, read, write, search, findDOI, library, tag, get connection() { return connection; } };
+  async function locatePDF(data) {
+    const {response,data:result} = await request("../yanji/pdf/locate",{method:"POST",timeout:120000,headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});
+    if(response.status===404) throw new Error("请先在 Zotero 10 中安装并启用‘研迹 · PDF 句对定位’配套插件。");
+    if(!response.ok) throw new Error(result.error || `PDF 定位失败（${response.status}）。`);
+    return result;
+  }
+  globalThis.YanjiZotero = { connect, read, write, search, findDOI, locatePDF, library, tag, get connection() { return connection; } };
 })();

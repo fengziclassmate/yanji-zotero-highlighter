@@ -1,0 +1,7 @@
+{
+  "manifest_version": 2,
+  "name": "研迹 · PDF 句对定位",
+  "version": "0.1.0",
+  "description": "为研迹 Edge 扩展按需定位英文句子在本机 Zotero PDF 中的页码和高亮坐标。",
+  "applications": { "zotero": { "id": "yanji-pdf@fengziclassmate", "update_url": "https://raw.githubusercontent.com/fengziclassmate/yanji-zotero-highlighter/main/zotero/updates.json", "strict_min_version": "10.0", "strict_max_version": "10.0.*" } }
+}

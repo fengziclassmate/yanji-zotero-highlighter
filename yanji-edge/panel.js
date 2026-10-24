@@ -11,6 +11,7 @@ function status(selector, text, kind = "") { const node = $(selector); node.text
 const report = (selector, error) => { console.error(error); status(selector, error.message, "error"); };
 function paint() {
   if (!page) return;
+  closeTitleMenu();
   $("#title").textContent = page.title || "未命名文章";
   $("#source").textContent = page.doi ? "DOI · " + page.doi : new URL(page.url).hostname || "本地文章";
   $("#copy-doi").hidden = !page.doi;
@@ -122,21 +123,52 @@ $("#close-sentences").innerHTML = Y.icon("close");
 $("#close-original").innerHTML = Y.icon("close");
 $("#close-original").onclick = () => $("#original-dialog").close();
 $("#original-dialog").onclose = () => $("#original-body").replaceChildren();
-for (const field of ["title", "doi"]) {
-  $("#copy-" + field).innerHTML = Y.icon("copy");
-  $("#copy-" + field).onclick = async () => {
-    if (!page) return;
-    try {
-      await navigator.clipboard.writeText(page[field]);
-      $("#copy-" + field).title = "已复制";
-    } catch (error) { report("#page-status", error); }
-  };
+$("#copy-title").innerHTML = Y.icon("copy");
+$("#copy-doi").innerHTML = Y.icon("copy");
+function closeTitleMenu() {
+  $("#title-copy-menu").hidden = true;
+  $("#copy-title").setAttribute("aria-expanded", "false");
 }
+$("#copy-title").onclick = () => {
+  if (!page) return;
+  const menu = $("#title-copy-menu");
+  menu.hidden = !menu.hidden;
+  $("#copy-title").setAttribute("aria-expanded", String(!menu.hidden));
+  if (!menu.hidden) menu.querySelector("button").focus();
+};
+$("#title-copy-menu").onclick = async event => {
+  const button = event.target.closest("button[data-copy-title]");
+  if (!button || !page) return;
+  try {
+    await navigator.clipboard.writeText(button.dataset.copyTitle === "folder" ? Y.folderTitle(page.title) : page.title);
+    status("#page-status", button.dataset.copyTitle === "folder" ? "已复制文件夹名称" : "已复制完整标题");
+    closeTitleMenu(); $("#copy-title").focus();
+  } catch (error) { report("#page-status", error); }
+};
+$("#title-copy-menu").onkeydown = event => {
+  if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); closeTitleMenu(); $("#copy-title").focus(); }
+  else if (["ArrowUp", "ArrowDown"].includes(event.key)) {
+    event.preventDefault();
+    const buttons = [...$("#title-copy-menu").querySelectorAll("button")];
+    buttons[(buttons.indexOf(document.activeElement) + 1) % buttons.length].focus();
+  }
+};
+document.addEventListener("click", event => { if (!event.target.closest(".title-copy")) closeTitleMenu(); });
+document.addEventListener("focusin", event => { if (!event.target.closest(".title-copy")) closeTitleMenu(); });
+$("#copy-doi").onclick = async () => {
+  if (!page?.doi) return;
+  try { await navigator.clipboard.writeText(page.doi); $("#copy-doi").title = "已复制"; }
+  catch (error) { report("#page-status", error); }
+};
 $("#options").onclick = () => chrome.runtime.openOptionsPage();
 $("#backup-link").onclick = () => chrome.tabs.create({ url: chrome.runtime.getURL("options.html#backup") });
 $("#connect").onclick = async () => {
   status("#connection-status", "正在连接…");
-  try { await send({ type: "CONNECT" }); status("#connection-status", "Zotero 已连接", "success"); }
+  try {
+    const allowed = await chrome.permissions.request({origins:chrome.runtime.getManifest().host_permissions});
+    if(!allowed) throw Error("需要允许访问本机 Zotero 接口，才能关联和更新文献。");
+    await send({ type: "CONNECT" }); status("#connection-status", "Zotero 已连接", "success");
+  }
   catch (error) { report("#connection-status", error); }
 };
 $("#search").onclick = search;

@@ -1,4 +1,4 @@
-importScripts("shared.js", "zotero.js", "store.js");
+importScripts("shared.js", "zotero.js", "store.js", "pdf-sync.js");
 const Y = Yanji;
 const Z = YanjiZotero;
 const S = YanjiStore;
@@ -131,8 +131,11 @@ async function syncPage(id, force, interactive = true) {
 async function handle(message, sender) {
   const internal = sender.url?.startsWith(chrome.runtime.getURL(""));
   const { type } = message;
-  if (["CONNECT", "SEARCH", "BIND", "SYNC", "CHECK_DOI", "ANN_ALIGN", "SETTINGS_SAVE", "CONFIG_EXPORT", "CONFIG_IMPORT", "BACKUP_META", "BACKUP_CHECK", "IMPORT_BEGIN", "IMPORT_CHUNK", "IMPORT_END", "PAGES"].includes(type) && !internal) throw new Error("此操作仅限扩展内部界面。");
+  if (["CONNECT", "SEARCH", "BIND", "SYNC", "CHECK_DOI", "ANN_ALIGN", "PDF_SCAN", "PDF_SAVE", "PDF_PREVIEW", "SETTINGS_SAVE", "CONFIG_EXPORT", "CONFIG_IMPORT", "BACKUP_META", "BACKUP_CHECK", "IMPORT_BEGIN", "IMPORT_CHUNK", "IMPORT_END", "PAGES"].includes(type) && !internal) throw new Error("此操作仅限扩展内部界面。");
   await S.ready();
+  if (type === "PDF_SCAN") return YanjiPDFSync.scan(message.pageId,message.attachmentKey);
+  if (type === "PDF_SAVE") return YanjiPDFSync.save(message.token,message.selections);
+  if (type === "PDF_PREVIEW") return YanjiPDFSync.preview(message.token,message.id,message.index);
   if (type === "PAGE_GET") return pageGet(message.meta, sender.tab?.id);
   if (type === "PAGE_OPEN") {
     const { page } = await pageGet(message.meta, sender.tab?.id);
