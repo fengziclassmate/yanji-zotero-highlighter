@@ -33,9 +33,10 @@ var YanjiPDFSync = (() => {
     await Z.connect();
     if(plan.serverID!==Z.connection.serverID) throw Error("Zotero 文献库已改变，请重新定位。");
     if(!Array.isArray(selections) || selections.some(row=>!plan.rows.some(source=>source.id===row.id&&Number.isInteger(row.index)&&row.index>=0&&row.index<source.matches.length))) throw Error("请选择有效的 PDF 匹配位置。");
-    const file = await Z.locatePDF({parentItemKey:plan.parentItemKey,attachmentKey:plan.attachmentKey,sentences:[{id:plan.rows[0].id,text:plan.rows[0].text}],verifyHash:plan.hash});
+    const file = await Z.locatePDF({parentItemKey:plan.parentItemKey,attachmentKey:plan.attachmentKey,sentences:plan.rows.map(({id,text})=>({id,text})),verifyHash:plan.hash});
     if(!file.hashMatches) throw Error("PDF 文件已经更换，请重新定位。");
-    const children = await Z.read(`${Z.library}/items/${plan.attachmentKey}/children?format=json`);
+    if(!Array.isArray(file.annotationKeys)) throw Error("请将 Zotero 的研迹配套插件升级至 0.1.2 或更新版本，再写入 PDF。");
+    const children = await Promise.all(file.annotationKeys.map(key=>Z.read(`${Z.library}/items/${key}`)));
     let written = 0, unchanged = 0, conflicts = 0;
     for(const selected of [...new Map(selections.map(row=>[row.id,row])).values()]) {
       const row = plan.rows.find(row=>row.id===selected.id), match = row.matches[selected.index];

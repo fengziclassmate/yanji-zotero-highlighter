@@ -13,7 +13,11 @@ var YanjiPDFBridge = (() => {
     if (!attachment) throw Error("请选择属于这篇文献的 PDF。");
     if (!(await attachment.getFilePathAsync())) throw Error("PDF 尚未下载到本机，请先在 Zotero 中打开一次。");
     const hash = await attachment.attachmentHash;
-    if(data.verifyHash) return {hashMatches:hash===data.verifyHash};
+    if(data.verifyHash) {
+      const markers = new Set(data.sentences.map(row=>"研迹句对:"+row.id));
+      const annotationKeys = attachment.getAnnotations().filter(item=>!item.deleted&&item.getTags().some(tag=>markers.has(tag.tag))).map(item=>item.key);
+      return {hashMatches:hash===data.verifyHash,annotationKeys};
+    }
     let reader = await Zotero.Reader.open(attachment.id,null,{openInBackground:!data.preview});
     if (!reader) reader = Zotero.Reader._readers.find(reader=>reader.itemID===attachment.id&&!reader._isTabClosed);
     if (!reader) throw Error("请先在 Zotero 中打开这份 PDF，再重试定位。");
