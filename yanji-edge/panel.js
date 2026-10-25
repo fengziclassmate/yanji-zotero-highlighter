@@ -131,8 +131,8 @@ $("#close-sentences").innerHTML = Y.icon("close");
 $("#close-original").innerHTML = Y.icon("close");
 $("#close-original").onclick = () => $("#original-dialog").close();
 $("#original-dialog").onclose = () => $("#original-body").replaceChildren();
-$("#copy-title").innerHTML = Y.icon("copy") + "<span>复制标题</span>";
-$("#copy-folder-title").innerHTML = Y.icon("folder") + "<span>复制文件夹名</span>";
+$("#copy-title").innerHTML = Y.icon("copy");
+$("#copy-folder-title").innerHTML = Y.icon("folder");
 $("#copy-doi").innerHTML = Y.icon("copy");
 for(const [id,folder] of [["copy-title",false],["copy-folder-title",true]]) $("#"+id).onclick = async () => {
   if(!page)return;
