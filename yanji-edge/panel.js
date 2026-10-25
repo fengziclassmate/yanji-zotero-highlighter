@@ -11,13 +11,14 @@ function status(selector, text, kind = "") { const node = $(selector); node.text
 const report = (selector, error) => { console.error(error); status(selector, error.message, "error"); };
 function paint() {
   if (!page) return;
-  closeTitleMenu();
+  $("#zotero-section").hidden=false;$("#annotation-section").hidden=false;
+  $("#copy-title").disabled=false;$("#copy-folder-title").disabled=false;
   $("#title").textContent = page.title || "未命名文章";
-  $("#source").textContent = page.doi ? "DOI，" + page.doi : new URL(page.url).hostname || "本地文章";
+  $("#source").textContent = page.doi ? "DOI " + page.doi : new URL(page.url).hostname || "本地文章";
   $("#copy-doi").hidden = !page.doi;
   $("#query").value = page.doi || page.title;
   $("#binding").textContent = page.binding ? page.binding.title : "尚未关联文献";
-  $("#binding").hidden=!!page.binding&&Y.normalize(page.binding.title)===Y.normalize(page.title);
+
   $("#sync").disabled = !page.annotations.length;
   paintConnection();
   $("#count").textContent = `${page.annotations.length} 条标注`;
@@ -27,13 +28,14 @@ function paint() {
   paintAnnotations();
 }
 function paintConnection() {
+  $("#binding").hidden=!page.binding||(page.binding.via==='doi'||Y.normalize(page.binding.title).toLowerCase()===Y.normalize(page.title).toLowerCase());
   const state = page.match?.status;
   status("#match-status", page.binding ? (page.binding.via === "doi" ? "DOI 已关联" : "已手动关联") : state === "ambiguous" ? "DOI 对应多篇文献，请选择。" : state === "waiting" ? "待入库，标注已缓存" : state === "no_doi" ? "无 DOI，请手动关联" : "未关联，标注已缓存");
   $("#match-results").innerHTML = !page.binding && state === "ambiguous" ? page.match.candidates.map(row => `<button class="result" data-key="${row.key}">${Y.escape(row.title)}<small>${Y.escape([row.authors, row.date, row.key].filter(Boolean).join("，"))}，关联并更新</small></button>`).join("") : "";
   if (page.sync?.status === "synced") {
     noteKey = page.sync.noteKey;
     $("#open-note").hidden = false;
-    status("#sync-status", (page.sync.unchanged ? "内容未变化，沿用同一份笔记。" : `已写入同一份笔记，${page.sync.count} 条`) + (page.sync.compacted ? "，英文已精简，本机保留全文" : ""), "success");
+    status("#sync-status", (page.sync.unchanged ? `内容未变化，${page.sync.count} 条` : `已写入笔记，${page.sync.count} 条`) + (page.sync.compacted ? "，英文已精简" : ""), "success");
   } else if (page.sync?.status === "error") {
     status("#sync-status", page.sync.code === "AUTH_REQUIRED" ? "点击更新笔记，授权写入 Zotero。" : page.sync.message, page.sync.code === "AUTH_REQUIRED" ? "" : "error");
     $("#force-sync").hidden = page.sync.code !== "MANAGED_CONFLICT";
@@ -60,6 +62,9 @@ async function load() {
     $("#title").textContent = "请打开文章正文";
     status("#page-status", "浏览器设置页、扩展商店和内置 PDF 阅读器不支持网页标注。可从下方打开已保存的文章。");
     page = null;
+    $("#source").textContent="";$("#copy-doi").hidden=true;
+    $("#zotero-section").hidden=true;$("#annotation-section").hidden=true;
+    $("#copy-title").disabled=true;$("#copy-folder-title").disabled=true;
     $("#sync").disabled = true;
     await loadArchive();
     return;
@@ -111,7 +116,7 @@ async function sync(force = false) {
     const result = await send({ type: "SYNC", pageId: page.id, force });
     noteKey = result.noteKey;
     $("#open-note").hidden = false;
-    status("#sync-status", (result.unchanged ? `内容未变化，沿用同一份笔记（${result.count} 条）。` : `已写入同一份笔记，${result.count} 条`) + (result.compacted ? "，英文已精简，本机保留全文" : ""), "success");
+    status("#sync-status", (result.unchanged ? `内容未变化，${result.count} 条` : `已写入笔记，${result.count} 条`) + (result.compacted ? "，英文已精简" : ""), "success");
   } catch (error) {
     report("#sync-status", error);
     if (error.code === "MANAGED_CONFLICT") $("#force-sync").hidden = false;
@@ -126,38 +131,14 @@ $("#close-sentences").innerHTML = Y.icon("close");
 $("#close-original").innerHTML = Y.icon("close");
 $("#close-original").onclick = () => $("#original-dialog").close();
 $("#original-dialog").onclose = () => $("#original-body").replaceChildren();
-$("#copy-title").innerHTML = Y.icon("copy");
+$("#copy-title").innerHTML = Y.icon("copy") + "<span>复制标题</span>";
+$("#copy-folder-title").innerHTML = Y.icon("folder") + "<span>复制文件夹名</span>";
 $("#copy-doi").innerHTML = Y.icon("copy");
-function closeTitleMenu() {
-  $("#title-copy-menu").hidden = true;
-  $("#copy-title").setAttribute("aria-expanded", "false");
-}
-$("#copy-title").onclick = () => {
-  if (!page) return;
-  const menu = $("#title-copy-menu");
-  menu.hidden = !menu.hidden;
-  $("#copy-title").setAttribute("aria-expanded", String(!menu.hidden));
-  if (!menu.hidden) menu.querySelector("button").focus();
+for(const [id,folder] of [["copy-title",false],["copy-folder-title",true]]) $("#"+id).onclick = async () => {
+  if(!page)return;
+  try {await navigator.clipboard.writeText(folder?Y.folderTitle(page.title):page.title);status("#page-status",folder?"已复制文件夹名称":"已复制完整标题");}
+  catch(error){report("#page-status",error);}
 };
-$("#title-copy-menu").onclick = async event => {
-  const button = event.target.closest("button[data-copy-title]");
-  if (!button || !page) return;
-  try {
-    await navigator.clipboard.writeText(button.dataset.copyTitle === "folder" ? Y.folderTitle(page.title) : page.title);
-    status("#page-status", button.dataset.copyTitle === "folder" ? "已复制文件夹名称" : "已复制完整标题");
-    closeTitleMenu(); $("#copy-title").focus();
-  } catch (error) { report("#page-status", error); }
-};
-$("#title-copy-menu").onkeydown = event => {
-  if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); closeTitleMenu(); $("#copy-title").focus(); }
-  else if (["ArrowUp", "ArrowDown"].includes(event.key)) {
-    event.preventDefault();
-    const buttons = [...$("#title-copy-menu").querySelectorAll("button")];
-    buttons[(buttons.indexOf(document.activeElement) + 1) % buttons.length].focus();
-  }
-};
-document.addEventListener("click", event => { if (!event.target.closest(".title-copy")) closeTitleMenu(); });
-document.addEventListener("focusin", event => { if (!event.target.closest(".title-copy")) closeTitleMenu(); });
 $("#copy-doi").onclick = async () => {
   if (!page?.doi) return;
   try { await navigator.clipboard.writeText(page.doi); $("#copy-doi").title = "已复制"; }

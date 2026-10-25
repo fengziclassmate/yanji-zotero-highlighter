@@ -235,7 +235,7 @@ async function handle(message, sender) {
     const offset = Number.isInteger(message.offset) && message.offset >= 0 ? message.offset : 0;
     return { items: rows.slice(offset, offset + 50), total: rows.length, next: offset + 50 < rows.length ? offset + 50 : null };
   }
-  if (type === "BACKUP_META") return S.manifest();
+  if (type === "BACKUP_META") return S.manifest(message.pdfLinks);
   if (type === "BACKUP_CHECK") {
     if ((await chrome.storage.local.get("dataRevision")).dataRevision !== message.revision) throw new Error("备份期间标注发生变化，请重新导出。");
     return true;
@@ -247,10 +247,14 @@ async function handle(message, sender) {
     for (const row of settings.categories) if (!merged.has(row.id)) merged.set(row.id, row);
     if (merged.size > 30) throw new Error("合并后超过 30 个分类，请先整理分类再导入。");
     const token = crypto.randomUUID();
-    imports.set(token, { settings: { ...existingSettings, categories: [...merged.values()] }, ids: new Set(merged.keys()), parts: [], sequence: 0, count: 0 });
+    imports.set(token, { settings: { ...existingSettings, categories: [...merged.values()] }, ids: new Set(merged.keys()), parts: [], sequence: 0, count: 0,pdfLinks:S.validatePDFLinks(message.pdfLinks) });
     return token;
   });
-  if (type === "IMPORT_END") { imports.delete(message.token); return true; }
+  if (type === "IMPORT_END") return mutate(async()=>{
+    const session=imports.get(message.token);
+    if(session&&Object.keys(session.pdfLinks).length)await chrome.storage.local.set({...session.pdfLinks,dataRevision:crypto.randomUUID()});
+    imports.delete(message.token);return true;
+  });
   if (type === "IMPORT_CHUNK") return mutate(async () => {
     const session = imports.get(message.token);
     if (!session) throw new Error("导入会话已中断，请重新选择备份；已合并的内容会保留。");

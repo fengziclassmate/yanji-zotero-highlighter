@@ -5,7 +5,7 @@
     return result.data;
   };
   async function exportFile(mode, progress) {
-    const meta = await request({ type: "BACKUP_META" });
+    const meta = await request({ type: "BACKUP_META",pdfLinks:mode==="json" });
     const keys = (await chrome.storage.local.getKeys()).filter(key => key.startsWith("page:")).sort();
     const { revision, ...header } = meta;
     const chunks = mode === "json" ? [new Blob([JSON.stringify(header).slice(0, -1) + ',"pages":['])] : [];
@@ -26,7 +26,7 @@
   }
   async function restore(backup, progress) {
     if (backup?.format !== "yanji-backup" || backup.version !== 1 || !Array.isArray(backup.pages)) throw new Error("这不是有效的研迹备份文件。");
-    const token = await request({ type: "IMPORT_BEGIN", settings: backup.settings });
+    const token = await request({ type: "IMPORT_BEGIN", settings: backup.settings,pdfLinks:backup.pdfLinks });
     let count = 0;
     try {
       for (const page of backup.pages) {

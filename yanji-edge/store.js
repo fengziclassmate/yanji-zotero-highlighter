@@ -52,9 +52,26 @@
     const ids = (await area.get(key))[key] || [];
     return Object.values(await area.get(ids.map(id => "page:" + id))).filter(page => parentKey(page.binding) === key);
   }
-  async function manifest() {
+  async function manifest(includePDFLinks = false) {
     const data = await area.get(["settings", "dataRevision"]);
-    return { format: "yanji-backup", version: 1, exportedAt: new Date().toISOString(), settings: Yanji.settingsWithDefaults(data.settings), revision: data.dataRevision };
+    const header={ format: "yanji-backup", version: 1, exportedAt: new Date().toISOString(), settings: Yanji.settingsWithDefaults(data.settings), revision: data.dataRevision };
+    if(includePDFLinks){
+      const keys=(await area.getKeys()).filter(key=>key.startsWith('pdfLink:')||key.startsWith('pdfPortable:'));
+      const {zoteroAuth}=await area.get('zoteroAuth'),current='pdfLink:'+zoteroAuth?.serverID+':';
+      keys.sort((a,b)=>Number(a.startsWith(current))-Number(b.startsWith(current)));
+      const links=await area.get(keys);header.pdfLinks={};
+      for(const key of keys){const value=links[key],id=key.split(':').slice(-2).join(':');header.pdfLinks[id]={key:value.key,hash:value.hash,...(value.unverified?{unverified:true}:{})};}
+    }
+    return header;
   }
-  globalThis.YanjiStore = { ready, write, summaries, linked, manifest };
+  function validatePDFLinks(values = {}) {
+    if(!values||typeof values!=='object'||Array.isArray(values))throw Error('PDF 关联备份格式无效。');
+    const result={};
+    for(const [id,value] of Object.entries(values)){
+      if(!/^[A-Z0-9]{8}:[a-f0-9]{32}$/.test(id)||!value||!/^[A-Z0-9]{8}$/.test(value.key)||!/^[a-f0-9]{64}$/.test(value.hash)||value.unverified!==undefined&&typeof value.unverified!=='boolean')throw Error('PDF 关联备份格式无效。');
+      result['pdfPortable:'+id]={key:value.key,hash:value.hash,...(value.unverified?{unverified:true}:{})};
+    }
+    return result;
+  }
+  globalThis.YanjiStore = { ready, write, summaries, linked, manifest, validatePDFLinks };
 })();

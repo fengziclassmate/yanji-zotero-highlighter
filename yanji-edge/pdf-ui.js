@@ -45,7 +45,7 @@ $("#pdf-save").onclick = async () => {
   $("#pdf-save").disabled = true;
   try {
     const result = await send({type:"PDF_SAVE",token:pdfPlan.token,selections});
-    status("#pdf-status",`已写入 ${result.written} 条，沿用 ${result.unchanged} 条${result.conflicts?`，${result.conflicts} 条在 Zotero 中有修改，未覆盖`:""}`,"success");
+    status("#pdf-status",`已写入 ${result.written} 条，沿用 ${result.unchanged} 条${result.conflicts?`，${result.conflicts} 条需核对，未覆盖`:""}`,"success");
     $("#pdf-view").hidden = false;
   } catch(error) { report("#pdf-status",error); }
   finally { $("#pdf-save").disabled = false; }

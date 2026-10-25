@@ -6,5 +6,6 @@ const page=text=>({viewBox:[0,0,600,800],chars:[...text].map((u,i)=>({u,rect:[20
  const rows=await C.locate([{id:'unique',text:'Unique sentence.'},{id:'repeat',text:'Repeated text.'},{id:'cross',text:'First half continues on this page.'},{id:'ligature',text:'finish.'},{id:'missing',text:'Never present.'}],3,i=>pages[i]);
  assert.equal(rows[0].matches.length,1);assert.equal(rows[0].matches[0].position.rects[0][0],20);assert.equal(rows[1].matches.length,2);assert.ok(rows[2].matches[0].position.nextPageRects);assert.equal(rows[3].matches.length,1);assert.equal(rows[4].matches.length,0);
  const p=page('inter-national');p.chars[5].lineBreakAfter=true;assert.equal((await C.locate([{id:'hyphen',text:'international'}],1,()=>p))[0].matches.length,1);
+ const word=(await C.locate([{id:'word',text:'Unique'}],3,i=>pages[i]))[0];assert.equal(word.matches.length,1);assert.equal(word.matches[0].position.rects[0][2]-word.matches[0].position.rects[0][0],30,'Direct English terms highlight only the selected word');
  console.log('PASS PDF core: unique/ambiguous/missing text, coordinates, cross-page ranges, ligatures and line-end hyphenation');
 })().catch(e=>{console.error(e);process.exitCode=1});

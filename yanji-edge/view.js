@@ -12,6 +12,7 @@
     root.style.setProperty("--view-height",innerHeight/(zoom/100)+"px");
     root.classList.toggle("ui-compact", width <= 650);
     root.classList.toggle("ui-wide", width >= 1200);
+    root.classList.toggle("ui-tight",width<240);
   };
   function apply(value) {
     zoom = value;
