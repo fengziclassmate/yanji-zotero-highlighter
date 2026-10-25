@@ -13,10 +13,11 @@ function paint() {
   if (!page) return;
   closeTitleMenu();
   $("#title").textContent = page.title || "未命名文章";
-  $("#source").textContent = page.doi ? "DOI · " + page.doi : new URL(page.url).hostname || "本地文章";
+  $("#source").textContent = page.doi ? "DOI，" + page.doi : new URL(page.url).hostname || "本地文章";
   $("#copy-doi").hidden = !page.doi;
   $("#query").value = page.doi || page.title;
   $("#binding").textContent = page.binding ? page.binding.title : "尚未关联文献";
+  $("#binding").hidden=!!page.binding&&Y.normalize(page.binding.title)===Y.normalize(page.title);
   $("#sync").disabled = !page.annotations.length;
   paintConnection();
   $("#count").textContent = `${page.annotations.length} 条标注`;
@@ -27,16 +28,16 @@ function paint() {
 }
 function paintConnection() {
   const state = page.match?.status;
-  status("#match-status", page.binding ? (page.binding.via === "doi" ? "DOI 已关联" : "已手动关联") : state === "ambiguous" ? "DOI 对应多篇文献，请选择。" : state === "waiting" ? "待入库 · 标注已缓存" : state === "no_doi" ? "无 DOI，请手动关联" : "未关联 · 标注已缓存");
-  $("#match-results").innerHTML = !page.binding && state === "ambiguous" ? page.match.candidates.map(row => `<button class="result" data-key="${row.key}">${Y.escape(row.title)}<small>${Y.escape([row.authors, row.date, row.key].filter(Boolean).join(" · "))} · 关联并更新</small></button>`).join("") : "";
+  status("#match-status", page.binding ? (page.binding.via === "doi" ? "DOI 已关联" : "已手动关联") : state === "ambiguous" ? "DOI 对应多篇文献，请选择。" : state === "waiting" ? "待入库，标注已缓存" : state === "no_doi" ? "无 DOI，请手动关联" : "未关联，标注已缓存");
+  $("#match-results").innerHTML = !page.binding && state === "ambiguous" ? page.match.candidates.map(row => `<button class="result" data-key="${row.key}">${Y.escape(row.title)}<small>${Y.escape([row.authors, row.date, row.key].filter(Boolean).join("，"))}，关联并更新</small></button>`).join("") : "";
   if (page.sync?.status === "synced") {
     noteKey = page.sync.noteKey;
     $("#open-note").hidden = false;
-    status("#sync-status", (page.sync.unchanged ? "内容未变化，沿用同一份笔记。" : `已写入同一份笔记 · ${page.sync.count} 条`) + (page.sync.compacted ? " · 英文已精简，本机保留全文" : ""), "success");
+    status("#sync-status", (page.sync.unchanged ? "内容未变化，沿用同一份笔记。" : `已写入同一份笔记，${page.sync.count} 条`) + (page.sync.compacted ? "，英文已精简，本机保留全文" : ""), "success");
   } else if (page.sync?.status === "error") {
     status("#sync-status", page.sync.code === "AUTH_REQUIRED" ? "点击更新笔记，授权写入 Zotero。" : page.sync.message, page.sync.code === "AUTH_REQUIRED" ? "" : "error");
     $("#force-sync").hidden = page.sync.code !== "MANAGED_CONFLICT";
-  } else status("#sync-status", page.sync?.status === "pending" ? "本机已保存 · 待更新笔记" : "");
+  } else status("#sync-status", page.sync?.status === "pending" ? "本机已保存，待更新笔记" : "");
 }
 function paintAnnotations() {
   const rows = page.annotations.filter(row => !$("#filter").value || row.category === $("#filter").value).sort((a, b) => a.segments[0].index - b.segments[0].index);
@@ -84,7 +85,7 @@ async function loadArchive(offset = 0) {
   const result = await send({ type: "PAGES", offset, exclude: page?.id });
   if (sequence !== archiveSequence) return;
   archiveOffset = offset;
-  $("#saved-pages").innerHTML = result.items.map(row => `<button data-url="${Y.escape(row.url)}">${Y.escape(row.title)}<small>${row.count} 条标注${row.binding ? " · 已关联 Zotero" : ""}</small></button>`).join("") || '<p class="muted">暂无其他已保存文章。</p>';
+  $("#saved-pages").innerHTML = result.items.map(row => `<button data-url="${Y.escape(row.url)}">${Y.escape(row.title)}<small>${row.count} 条标注${row.binding ? "，已关联 Zotero" : ""}</small></button>`).join("") || '<p class="muted">暂无其他已保存文章。</p>';
   $("#archive-pages").hidden = result.total <= 50;
   $("#archive-count").textContent = `${offset + 1}–${offset + result.items.length} / ${result.total}`;
   $("#archive-prev").disabled = offset === 0;
@@ -97,7 +98,7 @@ async function search() {
   try {
     const rows = await send({ type: "SEARCH", query: $("#query").value.trim(), doi: page.doi });
     status("#search-status", rows.length ? `${rows.length} 篇文献` : "未找到，可换标题关键词或稍后重试。");
-    $("#results").innerHTML = rows.map(row => `<button class="result" data-key="${row.key}">${row.exact ? "DOI 匹配 · " : ""}${Y.escape(row.title)}<small>${Y.escape([row.authors, row.date].filter(Boolean).join(" · "))}</small></button>`).join("");
+    $("#results").innerHTML = rows.map(row => `<button class="result" data-key="${row.key}">${row.exact ? "DOI 匹配，" : ""}${Y.escape(row.title)}<small>${Y.escape([row.authors, row.date].filter(Boolean).join("，"))}</small></button>`).join("");
   } catch (error) { report("#search-status", error); }
   finally { $("#search").disabled = false; }
 }
@@ -110,7 +111,7 @@ async function sync(force = false) {
     const result = await send({ type: "SYNC", pageId: page.id, force });
     noteKey = result.noteKey;
     $("#open-note").hidden = false;
-    status("#sync-status", (result.unchanged ? `内容未变化，沿用同一份笔记（${result.count} 条）。` : `已写入同一份笔记 · ${result.count} 条`) + (result.compacted ? " · 英文已精简，本机保留全文" : ""), "success");
+    status("#sync-status", (result.unchanged ? `内容未变化，沿用同一份笔记（${result.count} 条）。` : `已写入同一份笔记，${result.count} 条`) + (result.compacted ? "，英文已精简，本机保留全文" : ""), "success");
   } catch (error) {
     report("#sync-status", error);
     if (error.code === "MANAGED_CONFLICT") $("#force-sync").hidden = false;
@@ -118,6 +119,8 @@ async function sync(force = false) {
 }
 $("#options").innerHTML = Y.icon("settings");
 $("#connect").innerHTML = Y.icon("refresh");
+$("#preview").innerHTML = Y.icon("preview");
+$("#open-note").innerHTML = Y.icon("external");
 $("#close-preview").innerHTML = Y.icon("close");
 $("#close-sentences").innerHTML = Y.icon("close");
 $("#close-original").innerHTML = Y.icon("close");
@@ -198,7 +201,7 @@ $("#preview").onclick = () => {
   if (!page) return;
   try {
     const preview = Y.planNote(settings, { title: page.binding?.title || page.title }, page.annotations);
-    $("#preview-body").innerHTML = `<p class="muted">${preview.length.toLocaleString()} / ${Y.noteLimit.toLocaleString()} 字符${preview.compacted ? " · 英文已精简" : ""}</p>` + preview.html;
+    $("#preview-body").innerHTML = `<p class="muted">${preview.length.toLocaleString()} / ${Y.noteLimit.toLocaleString()} 字符${preview.compacted ? "，英文已精简" : ""}</p>` + preview.html;
     $("#preview-dialog").showModal();
   } catch (error) { report("#sync-status", error); }
 };
@@ -222,10 +225,14 @@ function openSentences(annotation) {
   sentenceRows = annotation.segments.flatMap((segment, segmentIndex) => {
     if (!segment.translated) return [];
     const candidates = Y.sentences(segment.original);
-    return Y.sentences(segment.quote, "zh").map((chinese, index) => ({ segmentIndex, index, chinese, candidates, english: [...(segment.sentencePairs?.find(pair => pair.index === index)?.english || [])] }));
+    const suggestions = YanjiRules.suggest(segment);
+    return Y.sentences(segment.quote, "zh").map((chinese, index) => {
+      const saved=segment.sentencePairs?.find(pair=>pair.index===index);
+      return {segmentIndex,index,chinese,candidates,english:[...(saved?.english||suggestions[index].english)],suggestion:suggestions[index],origin:saved?"saved":suggestions[index].english.length?"suggested":"empty"};
+    });
   });
   sentenceRow = 0;
-  $("#chinese-sentence").innerHTML = sentenceRows.map((row, index) => `<option value="${index}">${index + 1}. ${Y.escape(row.chinese.slice(0, 45))}</option>`).join("");
+  $("#chinese-sentence").innerHTML = sentenceRows.map((row, index) => `<option value="${index}">第 ${index + 1} 句</option>`).join("");
   status("#sentence-status", "");
   paintSentences();
   $("#sentence-dialog").showModal();
@@ -233,13 +240,19 @@ function openSentences(annotation) {
 function paintSentences() {
   const row = sentenceRows[sentenceRow];
   $("#chinese-excerpt").textContent = row.chinese;
+  $("#sentence-origin").textContent = {saved:"已保存",suggested:"规则预选",manual:"手动选择",empty:"未预选"}[row.origin];
+  $("#sentence-origin").title = row.origin==="suggested"?row.suggestion.reason:"";
   $("#english-candidates").innerHTML = row.candidates.map((text, index) => `<label class="sentence-candidate"><input type="checkbox" value="${index}" ${row.english.includes(text) ? "checked" : ""}><span>${Y.escape(text)}</span></label>`).join("");
+  const chosen=$("#english-candidates input:checked");
+  if(chosen) $("#english-candidates").scrollTop=chosen.closest("label").offsetTop-$("#english-candidates").offsetTop;
 }
 function collectSentences() {
   const row = sentenceRows[sentenceRow];
   row.english = [...$("#english-candidates").querySelectorAll("input:checked")].map(input => row.candidates[Number(input.value)]);
 }
 $("#chinese-sentence").onchange = () => { collectSentences(); sentenceRow = Number($("#chinese-sentence").value); paintSentences(); };
+$("#english-candidates").onchange = () => { sentenceRows[sentenceRow].origin="manual";$("#sentence-origin").textContent="手动选择"; };
+$("#suggest-sentences").onclick = () => { const row=sentenceRows[sentenceRow];row.english=[...row.suggestion.english];row.origin=row.english.length?"suggested":"empty";paintSentences(); };
 $("#close-sentences").onclick = () => $("#sentence-dialog").close();
 $("#save-sentences").onclick = async () => {
   collectSentences();
@@ -248,7 +261,7 @@ $("#save-sentences").onclick = async () => {
     if (!annotation) throw new Error("当前文章已切换，请回到原文章保存句对。");
     const pairs = annotation.segments.map((segment, index) => sentenceRows.filter(row => row.segmentIndex === index && row.english.length).map(({ index, chinese, english }) => ({ index, chinese, english })));
     page = await send({ type: "ANN_ALIGN", pageId: page.id, id: sentenceAnnotation, pairs });
-    $("#sentence-dialog").close(); paint(); status("#sync-status", "句对已保存在本机 · 待更新笔记");
+    $("#sentence-dialog").close(); paint(); status("#sync-status", "句对已保存在本机，待更新笔记");
   } catch (error) { report("#sentence-status", error); }
 };
 $("#annotations").onclick = async event => {
@@ -293,7 +306,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
     const next = changes["page:" + page.id].newValue;
     const edited = JSON.stringify(page.annotations) !== JSON.stringify(next.annotations);
     page = next;
-    if (edited) { paint(); status("#sync-status", "本机已保存 · 待更新笔记"); }
+    if (edited) { paint(); status("#sync-status", "本机已保存，待更新笔记"); }
     else { $("#binding").textContent = page.binding?.title || "尚未关联文献"; paintConnection(); }
   }
 });

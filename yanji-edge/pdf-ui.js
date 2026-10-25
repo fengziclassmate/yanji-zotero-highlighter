@@ -1,11 +1,13 @@
 let pdfPlan;
 $("#pdf-close").innerHTML = Y.icon("close");
+$("#pdf-scan").innerHTML = Y.icon("refresh");
 $("#pdf-close").onclick = () => $("#pdf-dialog").close();
 $("#pdf-open").onclick = () => {
   if(!page) return;
   pdfPlan = null;
   $("#pdf-results").replaceChildren(); $("#pdf-save").disabled = true; $("#pdf-view").hidden = true;
   $("#pdf-attachment").innerHTML = '<option value="">自动选择唯一 PDF</option>';
+  $("#pdf-file-name").hidden=true;$("#pdf-attachment").hidden=true;
   status("#pdf-status",""); $("#pdf-dialog").showModal(); $("#pdf-scan").click();
 };
 $("#pdf-scan").onclick = async () => {
@@ -16,11 +18,14 @@ $("#pdf-scan").onclick = async () => {
     const result = await send({type:"PDF_SCAN",pageId,attachmentKey:$("#pdf-attachment").value||undefined});
     if(page?.id!==pageId) throw Error("文章已切换，请重新打开 PDF 标注。");
     $("#pdf-attachment").innerHTML = '<option value="">请选择 PDF</option>' + result.choices.map(item=>`<option value="${Y.escape(item.key)}">${Y.escape(item.title)}</option>`).join("");
+    $("#pdf-attachment").hidden=result.choices.length===1;
+    $("#pdf-file-name").hidden=result.choices.length!==1;
+    $("#pdf-file-name").textContent=result.choices[0].title;$("#pdf-file-name").title=result.choices[0].title;
     if(!result.rows) { status("#pdf-status","这篇文献有多份 PDF，请选择后定位。"); return; }
     pdfPlan = result; $("#pdf-attachment").value = result.attachmentKey;
-    $("#pdf-results").innerHTML = result.rows.map((row,index)=>`<article class="pdf-match"><p>${Y.escape(row.chinese||row.text)}</p>${row.chinese?`<p class="original">${Y.escape(row.text)}</p>`:""}<select data-pdf-row="${Y.escape(row.id)}" aria-label="第 ${index+1} 句 PDF 位置"><option value="">${row.matches.length?"暂不写入":"未找到对应文字"}</option>${row.matches.map((match,i)=>`<option value="${i}" ${row.matches.length===1?"selected":""}>第 ${Y.escape(match.pageLabel)} 页${match.position.nextPageRects?" · 跨页":""} · 位置 ${i+1}</option>`).join("")}</select>${row.matches.length>1?'<button class="locate-button" data-pdf-view="'+Y.escape(row.id)+'">查看位置</button>':""}</article>`).join("");
+    $("#pdf-results").innerHTML = result.rows.map((row,index)=>`<article class="pdf-match"><p class="quote">${Y.escape(row.chinese||row.text)}</p>${row.chinese?`<p class="original">${Y.escape(row.text)}</p>`:""}<div class="pdf-targets">${row.matches.length===1?`<label class="check"><input type="checkbox" data-pdf-row="${Y.escape(row.id)}" value="0" checked>第 ${Y.escape(row.matches[0].pageLabel)} 页${row.matches[0].position.nextPageRects?" 跨页":""}</label>`:row.matches.length?`<select data-pdf-row="${Y.escape(row.id)}" aria-label="第 ${index+1} 句 PDF 位置"><option value="">选择位置</option>${row.matches.map((match,i)=>`<option value="${i}">第 ${Y.escape(match.pageLabel)} 页 / 位置 ${i+1}${match.position.nextPageRects?" 跨页":""}</option>`).join("")}</select>`:'<span class="muted">未找到对应文字</span>'}${row.matches.length>1?'<button class="quiet" data-pdf-view="'+Y.escape(row.id)+'">查看位置</button>':""}</div></article>`).join("");
     $("#pdf-save").disabled = !result.rows.some(row=>row.matches.length);
-    status("#pdf-status",`${result.rows.filter(row=>row.matches.length===1).length} 句唯一匹配 · ${result.rows.filter(row=>row.matches.length>1).length} 句需选择 · ${result.rows.filter(row=>!row.matches.length).length} 句未找到`);
+    status("#pdf-status",[result.rows.filter(row=>row.matches.length===1).length+" 句可写入",...[[result.rows.filter(row=>row.matches.length>1).length,"句需选择"],[result.rows.filter(row=>!row.matches.length).length,"句未找到"]].filter(([count])=>count).map(([count,text])=>count+" "+text)].join("，"));
   } catch(error) { report("#pdf-status",error); }
   finally { $("#pdf-scan").disabled = false; }
 };
@@ -35,12 +40,12 @@ $("#pdf-results").onclick = async event => {
 };
 $("#pdf-save").onclick = async () => {
   if(!pdfPlan) return;
-  const selections = [...$("#pdf-results").querySelectorAll("select[data-pdf-row]")].filter(select=>select.value!=="").map(select=>({id:select.dataset.pdfRow,index:Number(select.value)}));
+  const selections = [...$("#pdf-results").querySelectorAll("[data-pdf-row]")].filter(control=>control.type==="checkbox"?control.checked:control.value!=="").map(control=>({id:control.dataset.pdfRow,index:Number(control.value)}));
   if(!selections.length) { status("#pdf-status","请选择至少一个 PDF 位置。"); return; }
   $("#pdf-save").disabled = true;
   try {
     const result = await send({type:"PDF_SAVE",token:pdfPlan.token,selections});
-    status("#pdf-status",`已写入 ${result.written} 条 · 沿用 ${result.unchanged} 条${result.conflicts?` · ${result.conflicts} 条已在 Zotero 修改，未覆盖`:""}`,"success");
+    status("#pdf-status",`已写入 ${result.written} 条，沿用 ${result.unchanged} 条${result.conflicts?`，${result.conflicts} 条在 Zotero 中有修改，未覆盖`:""}`,"success");
     $("#pdf-view").hidden = false;
   } catch(error) { report("#pdf-status",error); }
   finally { $("#pdf-save").disabled = false; }

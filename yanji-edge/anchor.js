@@ -94,6 +94,11 @@
         after: index >= 0 && index + 1 < candidates.length ? text(candidates[index + 1], true) : "",
         prefix: position >= 0 ? paragraphText.slice(Math.max(0, position - 35), position) : "",
         suffix: position >= 0 ? paragraphText.slice(position + quote.length, position + quote.length + 35) : "" });
+      if (isTranslated) {
+        const translationText = text(target || blockTarget || block.querySelector(translated));
+        const start = paragraphText.indexOf(translationText);
+        if (translationText && start >= 0 && start === paragraphText.lastIndexOf(translationText)) Object.assign(segments.at(-1), {translationStart:start,translationEnd:start+translationText.length});
+      }
     }
     if (!segments.length) throw new Error("没有找到可标注的正文文字。");
     return segments;

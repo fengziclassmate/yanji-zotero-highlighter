@@ -39,7 +39,7 @@ $("#categories").addEventListener("click", event => {
   paintCategories();
   status("#save-status", "有未保存的分类修改。");
 });
-$("#add-category").onclick = () => { readRows(); settings.categories.push({ id: "category-" + crypto.randomUUID().slice(0, 8), name: "新分类", color: "#999999", meaning: "" }); paintCategories(); };
+$("#add-category").onclick = () => { readRows(); settings.categories.push({ id: "category-" + crypto.randomUUID().slice(0, 8), name: "新分类", color: Y.uiColors["--disabled"], meaning: "" }); paintCategories(); };
 $("#settings-form").onsubmit = async event => {
   event.preventDefault();
   try {

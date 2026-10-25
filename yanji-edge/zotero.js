@@ -57,7 +57,11 @@
       error.code = result.response.status === 412 ? "CONFLICT" : "API_ERROR";
       throw error;
     }
-    if (result.data?.failed && Object.keys(result.data.failed).length) throw new Error("Zotero 拒绝保存：" + JSON.stringify(result.data.failed));
+    if (result.data?.failed && Object.keys(result.data.failed).length) {
+      console.error("Zotero 写入失败",result.data.failed);
+      const failure=Object.values(result.data.failed)[0];
+      throw new Error(/Invalid annotation color/i.test(failure.message)?"标注颜色未被 Zotero 接受，请更新研迹后重试。":`Zotero 未保存：${failure.message}`);
+    }
     return result.data;
   }
   const candidates = (items, exactDOI) => {

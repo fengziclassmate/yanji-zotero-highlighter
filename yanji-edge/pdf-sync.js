@@ -45,7 +45,7 @@ var YanjiPDFSync = (() => {
       const matches = children.filter(item=>item.data.itemType==="annotation"&&!item.data.deleted&&item.data.tags.some(tag=>tag.tag===marker));
       if(matches.length>1 || !matches.length&&baseline) { conflicts++; continue; }
       let current = matches[0];
-      const data = {annotationType:"highlight",annotationText:row.text,annotationComment:`<p>${Y.escape(row.chinese)}</p>${row.comment?`<p>${Y.escape(row.comment).replace(/\n/g,"<br/>")}</p>`:""}<p>${Y.escape(row.url)}</p>`,annotationColor:row.color,annotationPageLabel:match.pageLabel,annotationSortIndex:match.sortIndex,annotationPosition:JSON.stringify(match.position)};
+      const data = {annotationType:"highlight",annotationText:row.text,annotationComment:`<p>${Y.escape(row.chinese)}</p>${row.comment?`<p>${Y.escape(row.comment).replace(/\n/g,"<br/>")}</p>`:""}<p>${Y.escape(row.url)}</p>`,annotationColor:row.color.toLowerCase(),annotationPageLabel:match.pageLabel,annotationSortIndex:match.sortIndex,annotationPosition:JSON.stringify(match.position)};
       const wanted = await digest(JSON.stringify(data));
       if(current) {
         const actual = await digest(JSON.stringify(managed(current.data)));

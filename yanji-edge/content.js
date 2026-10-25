@@ -8,9 +8,9 @@
   host.id = "yanji-root";
   const shadow = host.attachShadow({ mode: "open" });
   shadow.innerHTML = `<style>
-    :host{all:initial;font:14px/1.5 "Segoe UI","Microsoft YaHei",sans-serif;color:#252525}
-    *{box-sizing:border-box}button,select,textarea{font:inherit;color:inherit}button{cursor:pointer;background:#ffffffb3;border:1px solid #3332;border-radius:5px;padding:3px 7px;min-height:var(--button-size,28px);font-size:12px}button:hover{background:#fff}button:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid #444;outline-offset:2px}button:disabled{cursor:wait;color:#666}button.primary{background:#252525;color:white;border-color:#252525}button.danger{color:#a12c2c}button.swatch{display:inline-flex;gap:5px;align-items:center}.dot{width:10px;height:10px;border-radius:3px;border:1px solid #0002;flex:none}.menu,.editor{position:fixed;background:rgba(255,255,255,var(--popup-opacity,.88));border:1px solid #3333;border-radius:8px;padding:8px;box-shadow:0 3px 16px #0002;z-index:2147483647;max-width:calc(100vw - 20px);max-height:calc(100vh - 20px);resize:both;overflow:auto}.menu{min-width:220px;min-height:96px}.menu[hidden],.editor[hidden],.toast[hidden]{display:none}.tools{display:flex;gap:3px;align-items:center;margin-bottom:7px}.tools .close{margin-left:auto}.icon{display:inline-flex;align-items:center;justify-content:center;width:var(--button-size,28px);padding:3px;background:transparent;border-color:transparent;flex:none}.menu-actions{float:right;display:flex;gap:1px;margin-left:5px}.categories{display:block;line-height:0}.categories button{line-height:1.5;vertical-align:top;margin:0 4px 4px 0}.menu{min-height:78px;padding-bottom:10px}.editor{min-width:260px;min-height:300px;right:20px;top:80px}.editor label{display:block;font-size:12px;margin:8px 0 4px;color:#555}.editor select,.editor textarea{width:100%;border:1px solid #ccc;border-radius:5px;padding:6px;background:#ffffffc9}.editor textarea{min-height:90px;resize:vertical}.excerpt{max-height:80px;overflow:auto;font-size:12px;color:#555;white-space:pre-wrap;border-left:2px solid #bbb;padding-left:8px;margin:8px 0}.actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}.hint{font-size:11px;color:#555}.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);max-width:min(580px,calc(100vw - 30px));padding:10px 16px;background:#262626;color:white;border-radius:8px;z-index:2147483647}.nav{position:fixed;right:3px;top:0;height:100vh;width:24px;pointer-events:none;z-index:2147483645}.nav button{position:absolute;width:22px;height:22px;min-height:22px;padding:5px;border:0;background:transparent;pointer-events:auto}.nav i{display:block;width:11px;height:11px;border-radius:50%;border:1px solid #0002}strong{font-weight:600}
-    @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+    :host{${Object.entries(Y.uiColors).map(([name,value])=>name+":"+value).join(";")};all:initial;font:14px/1.5 "Segoe UI","Microsoft YaHei",sans-serif;color:var(--text)}
+*{box-sizing:border-box}button,select,textarea{font:inherit;color:inherit}button{cursor:pointer;background:color-mix(in srgb,var(--bg) 80%,transparent);border:.5px solid var(--control-line);border-radius:4px;padding:4px 8px;min-height:var(--button-size,28px);font-size:12px}button:hover{background:var(--bg)}button:focus-visible,select:focus-visible,textarea:focus-visible{outline:.5px solid var(--text);outline-offset:3px}button:disabled{cursor:wait;color:var(--muted)}button.primary{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}button.danger{color:var(--error)}button.swatch{display:inline-flex;gap:6px;align-items:center}.dot{width:10px;height:10px;border-radius:2px;flex:none}.menu,.editor{position:fixed;background:rgb(var(--panel-rgb) / var(--popup-opacity,.88));border:.5px solid var(--control-line);border-radius:8px;padding:8px;box-shadow:0 3px 12px var(--shadow);z-index:2147483647;max-width:calc(100vw - 20px);max-height:calc(100vh - 20px);resize:both;overflow:auto}.menu{min-width:220px;min-height:78px;padding-bottom:10px}.menu[hidden],.editor[hidden],.toast[hidden]{display:none}.tools{display:flex;gap:4px;align-items:center;margin-bottom:8px}.tools .close{margin-left:auto}.icon{display:inline-flex;align-items:center;justify-content:center;width:var(--button-size,28px);padding:4px;background:transparent;border-color:transparent;flex:none}.menu-actions{float:right;display:flex;gap:2px;margin-left:6px}.categories{display:block;line-height:0}.categories button{line-height:1.5;vertical-align:top;margin:0 4px 4px 0}.editor{min-width:260px;min-height:300px;right:20px;top:80px}.editor label{display:block;font-size:12px;margin:12px 0 6px;color:var(--muted)}.editor select,.editor textarea{width:100%;border:.5px solid var(--control-line);border-radius:4px;padding:8px;background:color-mix(in srgb,var(--bg) 90%,transparent)}.editor textarea{min-height:96px;resize:vertical}.excerpt{max-height:96px;overflow:auto;font-size:14px;color:var(--muted);background:var(--ground);padding:8px;margin:8px 0;white-space:pre-wrap}.actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px}.hint{font-size:12px;color:var(--muted)}.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);max-width:min(580px,calc(100vw - 30px));padding:10px 16px;background:var(--accent);color:var(--on-accent);border-radius:4px;z-index:2147483647}.nav{position:fixed;right:3px;top:0;height:100vh;width:24px;pointer-events:none;z-index:2147483645}.nav button{position:absolute;width:22px;height:22px;min-height:22px;padding:5px;border:0;background:transparent;pointer-events:auto}.nav i{display:block;width:11px;height:11px;border-radius:50%;border:.5px solid var(--control-line)}strong{font-weight:600}
+@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
   </style><div class="menu" hidden role="toolbar" aria-label="选择标注分类"></div><section class="editor" hidden role="dialog" aria-label="编辑标注"><div class="tools"><strong>批注</strong><button class="icon close" data-do="cancel" title="关闭" aria-label="关闭">${Y.icon("close")}</button></div><div class="excerpt"></div><label for="yj-category">分类</label><select id="yj-category"></select><label for="yj-comment">我的批注</label><textarea id="yj-comment" placeholder="记录想法…"></textarea><div class="actions"><button class="primary" data-do="save">保存</button><span class="hint">Ctrl + Enter</span><button class="icon danger" data-do="delete" title="删除标注" aria-label="删除标注">${Y.icon("trash")}</button></div></section><div class="nav" aria-label="标注段落导航"></div><div class="toast" hidden role="status" aria-live="polite"></div>`;
   document.documentElement.append(host);
   const menu = shadow.querySelector(".menu"), editor = shadow.querySelector(".editor"), toast = shadow.querySelector(".toast");
@@ -68,7 +68,7 @@
     getSelection().removeAllRanges();
     restore();
     if (withComment) edit(page.annotations.at(-1).id);
-    else notice("已保存到浏览器 · " + settings.categories.find(row => row.id === category).name);
+    else notice("已保存到浏览器，" + settings.categories.find(row => row.id === category).name);
   }
   function edit(id) {
     const annotation = page.annotations.find(row => row.id === id);
@@ -120,7 +120,7 @@
       }
       if (first) located.push({ annotation, ...first });
     }
-    style.textContent = settings.categories.map(row => `::highlight(yanji-${row.id}){${settings.style !== "underline" ? `background-color:${row.color}55;` : ""}${settings.style !== "highlight" ? `text-decoration:underline;text-decoration-color:${row.color};text-decoration-thickness:2px;` : ""}}`).join("\n") + ".yanji-paragraph-focus{outline:2px solid #777!important;outline-offset:5px!important;}";
+    style.textContent = settings.categories.map(row => `::highlight(yanji-${row.id}){${settings.style !== "underline" ? `background-color:${row.color}55;` : ""}${settings.style !== "highlight" ? `text-decoration:underline;text-decoration-color:${row.color};text-decoration-thickness:2px;` : ""}}`).join("\n") + ".yanji-paragraph-focus{outline:.5px solid "+Y.uiColors["--focus"]+"!important;outline-offset:5px!important;}";
     for (const [id, highlight] of highlights) CSS.highlights.set("yanji-" + id, highlight);
     const nav = shadow.querySelector(".nav");
     nav.replaceChildren();
@@ -129,7 +129,7 @@
       for (const row of located) {
         const category = settings.categories.find(value => value.id === row.annotation.category);
         const button = document.createElement("button");
-        button.title = category.name + " · " + row.annotation.quote.slice(0, 90);
+        button.title = category.name + "，" + row.annotation.quote.slice(0, 90);
         button.setAttribute("aria-label", "定位 " + button.title);
         button.style.top = Math.min(innerHeight - 28, Math.max(20, (row.block.getBoundingClientRect().top + scrollY) / height * (innerHeight - 35))) + "px";
         button.innerHTML = `<i style="background:${category.color}"></i>`;
@@ -155,7 +155,7 @@
     result.block.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth", block: "center" });
     result.block.classList.add("yanji-paragraph-focus");
     setTimeout(() => result.block.classList.remove("yanji-paragraph-focus"), 2800);
-    const message = result.status === "exact" ? "已定位到标注段落" : "已定位原文段落 · 译文已变化，历史摘录已保留";
+    const message = result.status === "exact" ? "已定位到标注段落" : "已定位原文段落，译文已变化，历史摘录已保留";
     notice(message);
     return { found: true, status: result.status, message };
   }

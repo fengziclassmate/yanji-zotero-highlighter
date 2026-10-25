@@ -1,5 +1,6 @@
 (() => {
   const root = document.documentElement;
+  for (const [name,value] of Object.entries(Yanji.uiColors)) root.style.setProperty(name,value);
   const button = document.querySelector("#view-zoom");
   const view = document.body.classList.contains("panel-body") ? "panel" : "options";
   const key = "uiZoom:" + view;
@@ -7,6 +8,8 @@
   let zoom = 110;
   const layout = () => {
     const width = innerWidth / (zoom / 100);
+    root.style.setProperty("--view-width",width+"px");
+    root.style.setProperty("--view-height",innerHeight/(zoom/100)+"px");
     root.classList.toggle("ui-compact", width <= 650);
     root.classList.toggle("ui-wide", width >= 1200);
   };
