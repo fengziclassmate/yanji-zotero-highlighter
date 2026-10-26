@@ -302,6 +302,11 @@ async function handle(message, sender) {
 }
 const imports = new Map();
 let optionsOpening;
+async function rememberOptionsBounds(window) {
+  if (window.state !== "normal") return;
+  const { left, top, width, height } = window;
+  await chrome.storage.local.set({ optionsWindowBounds: { left, top, width, height } });
+}
 async function openOptions(section, display) {
   if (optionsOpening) await optionsOpening;
   const task = (async () => {
@@ -311,17 +316,32 @@ async function openOptions(section, display) {
     const existing = windows.find(window => window.tabs.some(owns));
     if (existing) {
       const tab = existing.tabs.find(owns);
+      await chrome.storage.session.set({ optionsWindowId: existing.id });
+      await rememberOptionsBounds(existing);
       if (section && tab.url !== url) await chrome.tabs.update(tab.id, { url });
       await chrome.windows.update(existing.id, { focused: true });
       return { windowId: existing.id };
     }
-    const width = Math.min(1120, display.width - 32), height = Math.min(880, display.height - 48);
-    const created = await chrome.windows.create({ url, type: "popup", width, height, left: display.left + Math.round((display.width - width) / 2), top: display.top + Math.round((display.height - height) / 2) });
+    const saved = (await chrome.storage.local.get("optionsWindowBounds")).optionsWindowBounds;
+    const width = Math.min(saved?.width || 1120, display.width - 32), height = Math.min(saved?.height || 880, display.height - 48);
+    const left = Math.max(display.left, Math.min(saved?.left ?? display.left + Math.round((display.width - width) / 2), display.left + display.width - width));
+    const top = Math.max(display.top, Math.min(saved?.top ?? display.top + Math.round((display.height - height) / 2), display.top + display.height - height));
+    let created = await chrome.windows.create({ url, type: "popup", width, height, left, top });
+    // Edge can replace small requested bounds with its default window size on creation.
+    if (created.width !== width || created.height !== height || created.left !== left || created.top !== top) created = await chrome.windows.update(created.id, { width, height, left, top });
+    await chrome.storage.session.set({ optionsWindowId: created.id });
+    await rememberOptionsBounds(created);
     return { windowId: created.id };
   })();
   optionsOpening = task;
   try { return await task; } finally { if (optionsOpening === task) optionsOpening = null; }
 }
+chrome.windows.onBoundsChanged.addListener(window => {
+  if (window.type !== "popup" || window.state !== "normal") return;
+  chrome.storage.session.get("optionsWindowId").then(saved => {
+    if (saved.optionsWindowId === window.id) return rememberOptionsBounds(window);
+  }).catch(error => console.error("研迹设置窗口", error));
+});
 chrome.runtime.onMessage.addListener((message, sender, respond) => {
   handle(message, sender).then(data => respond({ ok: true, data }), error => { console.error("研迹", error); respond({ ok: false, error: error.message, code: error.code || "ERROR" }); });
   return true;
