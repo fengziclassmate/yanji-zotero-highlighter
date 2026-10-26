@@ -65,7 +65,6 @@
     "badge": true,
     "continuous": false,
     "shortcuts": false,
-    "showEnglish": true,
     "noteTitle": "网页阅读标注",
     "autoSyncOnOpen": true,
     "toolbarExpanded": true,

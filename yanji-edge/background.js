@@ -108,11 +108,11 @@ async function syncPage(id, force, interactive = true) {
       }
     }
     const plan = Y.planNote(settings, { title: parent.data.title }, annotations, manual);
-    const { managed, html, compacted, length } = plan;
+    const { managed, html, length } = plan;
     const contentHash = await digest(managed);
     if (note) {
       const parts = Y.splitNote(note.data.note);
-      if (link?.contentHash === contentHash && parts.managed === link.lastManaged && !parts.legacyHeading) return { noteKey: note.key, unchanged: true, count: annotations.length, compacted, length };
+      if (link?.contentHash === contentHash && parts.managed === link.lastManaged && !parts.legacyHeading) return { noteKey: note.key, unchanged: true, count: annotations.length, length };
       await Z.write(`${Z.library}/items/${note.key}`, "PATCH", { note: html }, { "If-Unmodified-Since-Version": String(note.version) }, interactive);
     } else {
       const alphabet = "23456789ABCDEFGHIJKLMNPQRSTUVWXYZ";
@@ -125,7 +125,7 @@ async function syncPage(id, force, interactive = true) {
     const saved = await Z.read(`${Z.library}/items/${note.key}`);
     const savedParts = Y.splitNote(saved.data.note);
     await chrome.storage.local.set({ [lock]: { noteKey: note.key, lastManaged: savedParts.managed, contentHash, syncedAt: new Date().toISOString(), count: annotations.length } });
-    return { noteKey: note.key, count: annotations.length, unchanged: false, compacted, length };
+    return { noteKey: note.key, count: annotations.length, unchanged: false, length };
   } finally { syncLocks.delete(lock); }
 }
 async function handle(message, sender) {

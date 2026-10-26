@@ -13,6 +13,7 @@
     root.classList.toggle("ui-compact", width <= 650);
     root.classList.toggle("ui-wide", width >= 1200);
     root.classList.toggle("ui-tight",width<240);
+    root.classList.toggle("ui-short",innerHeight/(zoom/100)<360);
   };
   function apply(value) {
     zoom = value;

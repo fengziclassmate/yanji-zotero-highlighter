@@ -35,7 +35,7 @@ function paintConnection() {
   if (page.sync?.status === "synced") {
     noteKey = page.sync.noteKey;
     $("#open-note").hidden = false;
-    status("#sync-status", (page.sync.unchanged ? `内容未变化，${page.sync.count} 条` : `已写入笔记，${page.sync.count} 条`) + (page.sync.compacted ? "，英文已精简" : ""), "success");
+    status("#sync-status", (page.sync.unchanged ? `内容未变化，${page.sync.count} 条` : `已写入笔记，${page.sync.count} 条`), "success");
   } else if (page.sync?.status === "error") {
     status("#sync-status", page.sync.code === "AUTH_REQUIRED" ? "点击更新笔记，授权写入 Zotero。" : page.sync.message, page.sync.code === "AUTH_REQUIRED" ? "" : "error");
     $("#force-sync").hidden = page.sync.code !== "MANAGED_CONFLICT";
@@ -116,7 +116,7 @@ async function sync(force = false) {
     const result = await send({ type: "SYNC", pageId: page.id, force });
     noteKey = result.noteKey;
     $("#open-note").hidden = false;
-    status("#sync-status", (result.unchanged ? `内容未变化，${result.count} 条` : `已写入笔记，${result.count} 条`) + (result.compacted ? "，英文已精简" : ""), "success");
+    status("#sync-status", (result.unchanged ? `内容未变化，${result.count} 条` : `已写入笔记，${result.count} 条`), "success");
   } catch (error) {
     report("#sync-status", error);
     if (error.code === "MANAGED_CONFLICT") $("#force-sync").hidden = false;
@@ -145,7 +145,6 @@ $("#copy-doi").onclick = async () => {
   catch (error) { report("#page-status", error); }
 };
 $("#options").onclick = () => chrome.runtime.openOptionsPage();
-$("#backup-link").onclick = () => chrome.tabs.create({ url: chrome.runtime.getURL("options.html#backup") });
 $("#connect").onclick = async () => {
   status("#connection-status", "正在连接…");
   try {
@@ -182,7 +181,7 @@ $("#preview").onclick = () => {
   if (!page) return;
   try {
     const preview = Y.planNote(settings, { title: page.binding?.title || page.title }, page.annotations);
-    $("#preview-body").innerHTML = `<p class="muted">${preview.length.toLocaleString()} / ${Y.noteLimit.toLocaleString()} 字符${preview.compacted ? "，英文已精简" : ""}</p>` + preview.html;
+    $("#preview-body").innerHTML = `<p class="muted">${preview.length.toLocaleString()} / ${Y.noteLimit.toLocaleString()} 字符</p>` + preview.html;
     $("#preview-dialog").showModal();
   } catch (error) { report("#sync-status", error); }
 };

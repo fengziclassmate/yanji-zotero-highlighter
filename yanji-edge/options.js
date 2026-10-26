@@ -20,7 +20,7 @@ async function load() {
   paintCategories();
   for (const key of ["defaultCategory", "quickCount", "style", "noteTitle", "buttonSize", "toolbarWidth"]) $("#" + key).value = settings[key];
   $("#toolbarOpacity").value = Math.round(settings.toolbarOpacity * 100);
-  for (const key of ["navDots", "badge", "continuous", "shortcuts", "showEnglish", "toolbarExpanded", "autoSyncOnOpen"]) $("#" + key).checked = settings[key];
+  for (const key of ["navDots", "badge", "continuous", "shortcuts", "toolbarExpanded", "autoSyncOnOpen"]) $("#" + key).checked = settings[key];
   updateOutputs();
   updateStylePreview();
 }
@@ -53,7 +53,7 @@ $("#settings-form").onsubmit = async event => {
     }
     for (const key of ["buttonSize", "toolbarWidth"]) settings[key] = Number($("#" + key).value);
     settings.toolbarOpacity = Number($("#toolbarOpacity").value) / 100;
-    for (const key of ["navDots", "badge", "continuous", "shortcuts", "showEnglish", "toolbarExpanded", "autoSyncOnOpen"]) settings[key] = $("#" + key).checked;
+    for (const key of ["navDots", "badge", "continuous", "shortcuts", "toolbarExpanded", "autoSyncOnOpen"]) settings[key] = $("#" + key).checked;
     settings = await send({ type: "SETTINGS_SAVE", settings });
     loadedWidth = settings.toolbarWidth;
     sizesReset = false;
