@@ -1,7 +1,7 @@
 (() => {
   const Y = Yanji;
   const blocks = "p, li, blockquote, td, figcaption, h1, h2, h3, h4, h5, h6, div[id^='sp'], .para, [data-imt-p]";
-  const translated = ".immersive-translate-target-wrapper, .immersive-translate-target-inner, [data-immersive-translate-translation-element], .immersive-translate-target";
+  const translated = ".immersive-translate-target-wrapper, .immersive-translate-target-inner, [data-immersive-translate-translation-element], .immersive-translate-target, [data-yanji-ref-translation]";
   const ignored = "script, style, noscript, textarea, input, [contenteditable='true'], #yanji-root";
   const element = node => node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
   function textNodes(root, originalOnly = false) {

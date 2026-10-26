@@ -109,10 +109,16 @@ $("#defaultCategory").onchange = updateStylePreview;
 function switchTab(id) {
   for (const panel of document.querySelectorAll(".tab-panel")) panel.hidden = panel.id !== id;
   for (const button of document.querySelectorAll("[data-tab]")) { if (button.dataset.tab === id) button.setAttribute("aria-current", "page"); else button.removeAttribute("aria-current"); }
-  $(".savebar").hidden = id === "sharing-tab";
+  $("#settings-form>.savebar").hidden = ["sharing-tab", "translation-tab"].includes(id);
 }
-document.querySelector(".settings-tabs").onclick = event => { const id = event.target.closest("button")?.dataset.tab; if (id) switchTab(id); };
-if (location.hash === "#backup") { switchTab("sharing-tab"); $("#backup").open = true; }
+document.querySelector(".settings-tabs").onclick = event => { const id = event.target.closest("button")?.dataset.tab; if (id) location.hash = id.replace(/-tab$/, ""); };
+function navigateSettings() {
+  const sections = { categories: "categories-tab", reading: "reading-tab", zotero: "zotero-tab", translation: "translation-tab", sharing: "sharing-tab", backup: "sharing-tab" };
+  switchTab(sections[location.hash.slice(1)] || "categories-tab");
+  if (location.hash === "#backup") $("#backup").open = true;
+}
+addEventListener("hashchange", navigateSettings);
+navigateSettings();
 $("#export-config").onclick = async () => {
   try { const config = await send({ type: "CONFIG_EXPORT" }); download(JSON.stringify(config, null, 2), "研迹课题组配置.json", "application/json"); status("#config-status", "已导出已保存的偏好，不含标注、文献关联或授权。", "success"); }
   catch (error) { status("#config-status", error.message, "error"); }
@@ -124,3 +130,5 @@ $("#import-config").onchange = async event => {
   catch (error) { status("#config-status", "导入失败：" + error.message, "error"); }
   event.target.value = "";
 };
+
+$(".version").textContent = "v" + chrome.runtime.getManifest().version;

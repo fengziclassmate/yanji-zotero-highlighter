@@ -2,7 +2,7 @@
 
 在 Edge 网页正文中标注中文译文，用自己的颜色分类阅读内容，再更新到 Zotero 10 对应文献的一份笔记中。
 
-**当前版本：0.5.3。** 原生 Manifest V3 扩展，无构建步骤、第三方运行时依赖或自建服务器。网页标注和分类笔记无需额外的 Zotero 插件；要在 Zotero PDF 中显示原生高亮，安装下方的配套插件。无需填写 Zotero 账号密码或手动申请 API Key。
+**当前版本：0.6.2。** 原生 Manifest V3 扩展，无构建步骤、第三方运行时依赖或自建服务器。网页标注和分类笔记无需额外的 Zotero 插件；要在 Zotero PDF 中显示原生高亮，安装下方的配套插件。无需填写 Zotero 账号密码或手动申请 API Key。
 
 ## 安装到 Edge
 
@@ -25,6 +25,34 @@
 5. 未做句对时，“原文段落”按需打开共用查看窗；做了句对后，卡片只展开对应英文，不再重复铺开长段落。“完整段落”仍可查看定位原文。
 
 浮窗支持拖动右下角调整大小并记忆。背景透明度、按钮大小、全部分类展开、快捷键和默认标注方式可在偏好设置中调整。侧栏和偏好设置分别支持 `Ctrl + 滚轮` 缩放并记忆；点击比例或按 `Ctrl + 0` 恢复 100%。偏好页根据窗口可用宽度重新布局。
+
+## 参考文献标题翻译
+
+1. 点击研迹右上角偏好设置，打开独立设置弹窗，选择 **翻译**。重复点击会聚焦已有窗口，不新增标签页。
+2. 选择翻译服务，填写自己的 API Key；Azure 区域按资源所在地填写，全球资源可留空。各服务的配置分别在本机保留。
+3. 点击 **测试翻译**，按浏览器提示允许访问该服务；成功后在文章侧栏打开 **参考文献翻译**。
+4. 滚动到参考文献，研迹保留原始英文，在相应条目下方添加中文标题。作者、期刊、年份、DOI 和其他插件的标签保留。
+5. 关闭开关后，研迹添加的译文移除，未发送的请求取消。重新开启优先使用已有缓存。
+
+| 服务 | 配置 |
+| --- | --- |
+| 小牛翻译 | 自己的小牛 API Key，调用官方文本翻译 API |
+| Google 翻译（免 Key，实验） | 无需 Key，使用网页接口；依赖网络可达性，可能限流或失效 |
+| 微软 Edge（免 Key，实验） | 无需 Key，使用网页接口；可能限流或失效 |
+| Google Cloud | 自己的 Cloud Translation Basic v2 API Key |
+| 微软 Azure | 自己的 Translator Key 和区域；支持免费层，额度以服务商规则为准 |
+
+开关默认关闭，状态在本机记忆。只发送识别出的参考文献标题，不发送整篇正文、作者列表或 Zotero 文献库。标题进入阅读区域附近时才请求翻译，切到后台后暂停新任务；全局串行发送，间隔至少 600ms。相同标题共享请求与缓存，译文缓存最多 1000 条，有效期 30 天，不进入个人备份。
+
+**密钥仅在当前 Edge 本机保存**，不随课题组配置、个人备份或 GitHub 分发。每位同门独立配置、授权并承担自己所选服务的额度或费用。缓存和密钥不会随 Zotero 账号同步。未安装沉浸式翻译或 OneScholar 时也可以使用。
+
+当前识别参考文献区域内明确标记的标题、引号内的标题及标题链接，支持 Outlier Analysis、Random forests 等短标题，排除出版社、摘要等功能链接。已在 ScienceDirect 实测，并覆盖 IEEE 等常见引用结构。网站未单独标记标题且引用文本无明确边界时会跳过，避免把作者、期刊一并翻译。网页改版或异步加载结构变化可能需要补充适配。翻译结果供阅读参考，不修改原始引用内容，也不自动写入 Zotero 笔记或 PDF。
+
+[参考文献翻译示例](docs/reference-translation.png)　[翻译设置示例](docs/translation-settings.png)
+
+实现时参考 [Translate for Zotero](https://github.com/windingwind/zotero-pdf-translate) 的服务接入资料。研迹独立实现浏览器端逻辑，未引入该项目的代码、依赖或 Zotero 插件。
+
+官方 API 文档：[小牛翻译](https://niutrans.com/documents/contents/trans_detection)、[Google Cloud](https://docs.cloud.google.com/translate/docs/basic/translating-text)、[微软 Azure](https://learn.microsoft.com/en-us/azure/cognitive-services/translator/quickstart-translator)。
 
 ## 中英句对齐
 
@@ -100,8 +128,8 @@ PDF 标注不再生成“研迹PDF标注”和“研迹句对:…”系统标签
 ## 数据、运行成本与使用范围
 
 - 标注和网页定位数据保存在当前 Edge 用户配置中。写入后的文本笔记由 Zotero 账号自行同步；网页划线缓存不会随 Zotero 自动同步。
-- 无自建服务器、付费接口、遥测或本地 AI 模型；扩展本身无按次调用费用。Zotero 账号及其他翻译插件的费用由各自服务决定。
-- 扩展的数据请求仅发往本机 `http://127.0.0.1:23119/api/`。`tabs` 用于识别当前文章；`storage` / `unlimitedStorage` 保存本地标注；`sidePanel` 显示侧栏；`clipboardWrite` 供主动复制；HTTP/HTTPS 正文脚本用于划线和定位。
+- 无自建服务器、遥测或本地 AI 模型；标注功能本身无按次调用费用。独立翻译及 Zotero 账号的额度、费用由各自服务决定。
+- 标注同步请求发往本机 `http://127.0.0.1:23119/api/`；参考文献翻译仅向选中的服务发送标题，按需请求对应服务的站点权限。`tabs` 用于识别当前文章；`storage` / `unlimitedStorage` 保存本地标注；`sidePanel` 显示侧栏；`clipboardWrite` 供主动复制；HTTP/HTTPS 正文脚本用于划线和定位。
 - 文章列表和标注每页 50 条，原文及编辑框按需加载；更新笔记按父文献索引读取相关文章。内存仍会随当前文章、打开的标签页和标注量变化，备份导入时解析大文件会临时占用额外内存。
 - 当前范围为顶层 HTML 正文及 Zotero“我的文献库”。不支持图片划线、浏览器内置 PDF 阅读器和群组文献库。DOI 先关联识别出的父文献；PDF 标注操作再选择其 PDF 附件。
 
@@ -123,6 +151,7 @@ PDF 标注不再生成“研迹PDF标注”和“研迹句对:…”系统标签
 
 ```sh
 node tests/shared.test.cjs
+node tests/reference-service.test.cjs
 node tests/sentence-rules.test.cjs
 node tests/pdf-core.test.cjs
 node tests/pdf-sync.test.cjs

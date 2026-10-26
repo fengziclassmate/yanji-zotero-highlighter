@@ -11,7 +11,7 @@ function status(selector, text, kind = "") { const node = $(selector); node.text
 const report = (selector, error) => { console.error(error); status(selector, error.message, "error"); };
 function paint() {
   if (!page) return;
-  $("#zotero-section").hidden=false;$("#annotation-section").hidden=false;
+  $("#zotero-section").hidden=false;$("#annotation-section").hidden=false;$("#reference-tools").hidden=false;
   $("#copy-title").disabled=false;$("#copy-folder-title").disabled=false;
   $("#title").textContent = page.title || "未命名文章";
   $("#source").textContent = page.doi ? "DOI " + page.doi : new URL(page.url).hostname || "本地文章";
@@ -63,7 +63,7 @@ async function load() {
     status("#page-status", "浏览器设置页、扩展商店和内置 PDF 阅读器不支持网页标注。可从下方打开已保存的文章。");
     page = null;
     $("#source").textContent="";$("#copy-doi").hidden=true;
-    $("#zotero-section").hidden=true;$("#annotation-section").hidden=true;
+    $("#zotero-section").hidden=true;$("#annotation-section").hidden=true;$("#reference-tools").hidden=true;
     $("#copy-title").disabled=true;$("#copy-folder-title").disabled=true;
     $("#sync").disabled = true;
     await loadArchive();
@@ -144,7 +144,7 @@ $("#copy-doi").onclick = async () => {
   try { await navigator.clipboard.writeText(page.doi); $("#copy-doi").title = "已复制"; }
   catch (error) { report("#page-status", error); }
 };
-$("#options").onclick = () => chrome.runtime.openOptionsPage();
+$("#options").onclick = () => send({ type: "OPTIONS_OPEN", display: { left: screen.availLeft, top: screen.availTop, width: screen.availWidth, height: screen.availHeight } }).catch(error => report("#page-status", error));
 $("#connect").onclick = async () => {
   status("#connection-status", "正在连接…");
   try {

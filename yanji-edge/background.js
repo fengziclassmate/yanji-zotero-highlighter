@@ -1,4 +1,4 @@
-importScripts("shared.js", "zotero.js", "store.js", "pdf-sync.js");
+importScripts("shared.js", "zotero.js", "store.js", "pdf-sync.js", "reference-service.js");
 const Y = Yanji;
 const Z = YanjiZotero;
 const S = YanjiStore;
@@ -131,6 +131,28 @@ async function syncPage(id, force, interactive = true) {
 async function handle(message, sender) {
   const internal = sender.url?.startsWith(chrome.runtime.getURL(""));
   const { type } = message;
+  if (type === "OPTIONS_OPEN") {
+    if (!internal || ![undefined, "", "translation", "backup"].includes(message.section) || !["left", "top", "width", "height"].every(key => Number.isFinite(message.display?.[key]))) throw Error("设置入口无效。");
+    return openOptions(message.section, message.display);
+  }
+  if (type.startsWith("REF_")) {
+    const R = YanjiReferencesService;
+    if (!internal && !/^https?:|^file:/.test(sender.tab?.url || "")) throw Error("翻译操作来源无效。");
+    if (["REF_SETTINGS_GET", "REF_SETTINGS_SAVE", "REF_TOGGLE", "REF_TEST"].includes(type) && !internal) throw Error("翻译设置仅限扩展内部界面。");
+    if (type === "REF_SETTINGS_GET") return { config: await R.config(), providers: R.providers };
+    if (type === "REF_STATE") return R.state(await R.config());
+    if (type === "REF_SETTINGS_SAVE") return R.save(message.config);
+    if (type === "REF_TOGGLE") {
+      if (typeof message.enabled !== "boolean") throw Error("翻译开关无效。");
+      const config = await R.config();
+      if (message.enabled) await R.requireService(config);
+      return R.save({ ...config, enabled: message.enabled });
+    }
+    if (type === "REF_TRANSLATE") return R.translate(message.text);
+    if (type === "REF_TEST") return R.translate("Reference title translation for academic reading", true);
+    if (type === "REF_PROGRESS") return true;
+    throw Error("未知翻译操作。");
+  }
   if (["CONNECT", "SEARCH", "BIND", "SYNC", "CHECK_DOI", "ANN_ALIGN", "PDF_SCAN", "PDF_SAVE", "PDF_PREVIEW", "SETTINGS_SAVE", "CONFIG_EXPORT", "CONFIG_IMPORT", "BACKUP_META", "BACKUP_CHECK", "IMPORT_BEGIN", "IMPORT_CHUNK", "IMPORT_END", "PAGES"].includes(type) && !internal) throw new Error("此操作仅限扩展内部界面。");
   await S.ready();
   if (type === "PDF_SCAN") return YanjiPDFSync.scan(message.pageId,message.attachmentKey);
@@ -279,6 +301,27 @@ async function handle(message, sender) {
   throw new Error("未知操作。");
 }
 const imports = new Map();
+let optionsOpening;
+async function openOptions(section, display) {
+  if (optionsOpening) await optionsOpening;
+  const task = (async () => {
+    const base = chrome.runtime.getURL("options.html"), url = base + (section ? "#" + section : "");
+    const windows = await chrome.windows.getAll({ populate: true, windowTypes: ["popup"] });
+    const owns = tab => (tab.pendingUrl || tab.url || "").split("#")[0] === base;
+    const existing = windows.find(window => window.tabs.some(owns));
+    if (existing) {
+      const tab = existing.tabs.find(owns);
+      if (section && tab.url !== url) await chrome.tabs.update(tab.id, { url });
+      await chrome.windows.update(existing.id, { focused: true });
+      return { windowId: existing.id };
+    }
+    const width = Math.min(1120, display.width - 32), height = Math.min(880, display.height - 48);
+    const created = await chrome.windows.create({ url, type: "popup", width, height, left: display.left + Math.round((display.width - width) / 2), top: display.top + Math.round((display.height - height) / 2) });
+    return { windowId: created.id };
+  })();
+  optionsOpening = task;
+  try { return await task; } finally { if (optionsOpening === task) optionsOpening = null; }
+}
 chrome.runtime.onMessage.addListener((message, sender, respond) => {
   handle(message, sender).then(data => respond({ ok: true, data }), error => { console.error("研迹", error); respond({ ok: false, error: error.message, code: error.code || "ERROR" }); });
   return true;
