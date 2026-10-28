@@ -141,14 +141,16 @@ async function handle(message, sender) {
     if (["REF_SETTINGS_GET", "REF_SETTINGS_SAVE", "REF_TOGGLE", "REF_TEST"].includes(type) && !internal) throw Error("翻译设置仅限扩展内部界面。");
     if (type === "REF_SETTINGS_GET") return { config: await R.config(), providers: R.providers };
     if (type === "REF_STATE") return R.state(await R.config());
-    if (type === "REF_SETTINGS_SAVE") return R.save(message.config);
-    if (type === "REF_TOGGLE") {
+    if (type === "REF_SETTINGS_SAVE") return mutate(() => R.save(message.config));
+    if (type === "REF_TOGGLE") return mutate(async () => {
       if (typeof message.enabled !== "boolean") throw Error("翻译开关无效。");
+      const area = message.area || "references";
+      if (!Object.hasOwn(Y.translationScopes, area)) throw Error("翻译类别无效。");
       const config = await R.config();
       if (message.enabled) await R.requireService(config);
-      return R.save({ ...config, enabled: message.enabled });
-    }
-    if (type === "REF_TRANSLATE") return R.translate(message.text);
+      return R.save({ ...config, [Y.translationScopes[area]]: message.enabled });
+    });
+    if (type === "REF_TRANSLATE") return R.translate(message.text, false, message.area || "references");
     if (type === "REF_TEST") return R.translate("Reference title translation for academic reading", true);
     if (type === "REF_PROGRESS") return true;
     throw Error("未知翻译操作。");

@@ -5,11 +5,15 @@
   const rows = 'li,[role="doc-biblioentry"],.reference-container,.reference,.csl-entry,.ref,.cit';
   const titles = '.contribution .title,.ref-title,.article-title,.articleTitle,.reference-title,.cit-article-title,.hlFld-Title,[data-testid="reference-title"],[itemprop="headline"],[itemtype$="/ScholarlyArticle"]>[itemprop="name"],[itemtype$="/Book"]>[itemprop="name"]';
   const excluded = '[data-yanji-ref-translation],.immersive-translate-target-wrapper,.immersive-translate-target-inner,[data-immersive-translate-translation-element],script,style,button';
+  const relatedAreas = {
+    recommended: '#recommended-articles,[data-section-name="recommended-articles"]',
+    citedBy: '#cited-by,#citing-articles,[data-section-name="cited-by"]'
+  };
   const records = new Map();
   let config = { enabled: false }, generation = 0, working = false, pending = [], lastError = "", timer, currentURL = location.href;
   const send = async message => {
     const result = await chrome.runtime.sendMessage(message);
-    if (!result.ok) throw Error(result.error);
+    if (!result.ok) throw Object.assign(Error(result.error), { code: result.code });
     return result.data;
   };
   function sourceText(node) {
@@ -19,25 +23,37 @@
     return Y.normalize(pieces.join(""));
   }
   const eligible = text => text.length >= 3 && text.length <= 2000 && /[a-z]{2}/i.test(text) && (text.match(/[\u3400-\u9fff]/g)?.length || 0) < text.length / 5 && !/^https?:|^doi\b/i.test(text);
+  const enabled = area => !!config[Y.translationScopes[area]];
+  const active = () => Object.keys(Y.translationScopes).some(enabled);
   function collect() {
     const found = new Map();
-    for (const root of document.querySelectorAll(roots)) {
+    if (enabled("references")) for (const root of document.querySelectorAll(roots)) {
       for (const title of root.querySelectorAll(titles)) {
         if (title.closest(excluded)) continue;
         const entry = title.closest(rows), text = sourceText(title);
-        if (entry && root.contains(entry) && !found.has(entry) && eligible(text)) found.set(entry, text);
+        if (entry && root.contains(entry) && !found.has(entry) && eligible(text)) found.set(entry, { title: text, area: "references" });
       }
       for (const entry of root.querySelectorAll(rows)) {
         if (found.has(entry) || entry.closest(excluded) || entry.querySelector(rows)) continue;
         const text = sourceText(entry), quote = [...text.matchAll(/["“]([^"”]{3,2000})["”]/g)].map(match => match[1]).find(eligible);
-        if (quote) { found.set(entry, quote); continue; }
+        if (quote) { found.set(entry, { title: quote, area: "references" }); continue; }
         const link = [...entry.querySelectorAll('a[href]')].filter(node => !node.closest(excluded)).map(sourceText).find(value => eligible(value) && (value.match(/[a-z]{2,}/gi)?.length || 0) >= 3 && !/^(?:view|show|open|download|find|read|visit|access|available)\b|google scholar|crossref|full text|web of science|pubmed/i.test(value));
-        if (link) found.set(entry, link);
+        if (link) found.set(entry, { title: link, area: "references" });
+      }
+    }
+    for (const [area, selector] of Object.entries(relatedAreas)) if (enabled(area)) {
+      for (const root of document.querySelectorAll(selector)) {
+        for (const candidate of root.querySelectorAll('a[id$="-title"],.related-article-card .article-title,.related-article-card h3')) {
+          const entry = candidate.matches("a") ? candidate : candidate.querySelector("a") || candidate;
+          if (entry.closest(excluded) || found.has(entry)) continue;
+          const text = sourceText(entry);
+          if (eligible(text)) found.set(entry, { title: text, area });
+        }
       }
     }
     return found;
   }
-  const progress = () => ({ enabled: config.enabled, found: records.size, done: [...records.values()].filter(row => row.done).length, error: lastError });
+  const progress = () => ({ enabled: active(), found: records.size, done: [...records.values()].filter(row => row.done).length, error: lastError });
   function notify() { send({ type: "REF_PROGRESS", progress: progress() }).catch(error => console.error("研迹参考文献", error)); }
   function clear() {
     generation++;
@@ -50,14 +66,14 @@
     lastError = "";
   }
   async function pump() {
-    if (working || !config.enabled || document.hidden || lastError) return;
+    if (working || !active() || document.hidden || lastError) return;
     working = true;
     try {
-      while (pending.length && config.enabled && !document.hidden && !lastError) {
+      while (pending.length && active() && !document.hidden && !lastError) {
         const row = pending.shift(), run = generation;
         if (!row.entry.isConnected || records.get(row.entry) !== row) continue;
         try {
-          const text = await send({ type: "REF_TRANSLATE", text: row.title });
+          const text = await send({ type: "REF_TRANSLATE", text: row.title, area: row.area });
           if (run !== generation || !row.entry.isConnected || records.get(row.entry) !== row) continue;
           const node = document.createElement("span");
           node.dataset.yanjiRefTranslation = "";
@@ -69,11 +85,11 @@
           row.entry.append(node);
           row.node = node;
           row.done = true;
-        } catch (error) { if (run === generation) { console.error("研迹参考文献", error); lastError = error.message; } }
+        } catch (error) { if (run === generation && records.get(row.entry) === row && enabled(row.area) && error.code !== "TRANSLATION_CANCELLED") { console.error("研迹文献翻译", error); lastError = error.message; } }
         notify();
       }
     } finally { working = false; }
-    if (pending.length && config.enabled && !document.hidden && !lastError) pump();
+    if (pending.length && active() && !document.hidden && !lastError) pump();
   }
   const visible = new IntersectionObserver(entries => {
     for (const entry of entries) {
@@ -83,27 +99,32 @@
     pump();
   }, { rootMargin: "400px" });
   function scan() {
-    if (!config.enabled || document.hidden) return;
+    if (!active() || document.hidden) return;
     if (location.href !== currentURL) { clear(); currentURL = location.href; observer.observe(document.body, { childList: true, characterData: true, subtree: true }); }
     const found = collect();
-    for (const [entry, row] of records) if (!entry.isConnected || found.get(entry) !== row.title) { row.node?.remove(); visible.unobserve(entry); records.delete(entry); }
-    for (const [entry, title] of found) if (!records.has(entry)) { const row = { entry, title, queued: false, done: false }; records.set(entry, row); visible.observe(entry); }
+    for (const [entry, row] of records) if (!entry.isConnected || found.get(entry)?.title !== row.title || found.get(entry)?.area !== row.area) { row.node?.remove(); visible.unobserve(entry); records.delete(entry); }
+    for (const [entry, source] of found) if (!records.has(entry)) { const row = { entry, ...source, queued: false, done: false }; records.set(entry, row); visible.observe(entry); }
     notify();
+    pump();
   }
   const observer = new MutationObserver(mutations => {
     if (document.hidden || !mutations.some(mutation => !(mutation.target.nodeType === Node.ELEMENT_NODE ? mutation.target : mutation.target.parentElement).closest(excluded) && (mutation.type === "characterData" || [...mutation.addedNodes, ...mutation.removedNodes].some(node => node.nodeType !== Node.ELEMENT_NODE || !node.matches('[data-yanji-ref-translation]'))))) return;
     clearTimeout(timer);
     timer = setTimeout(scan, 350);
   });
-  function apply(next) {
-    clear();
-    config = { enabled: next.enabled, provider: next.provider };
-    if (config.enabled) { observer.observe(document.body, { childList: true, characterData: true, subtree: true }); scan(); }
-    else notify();
+  function apply(next, serviceChanged = true) {
+    if (serviceChanged) clear();
+    config = { enabled: next.enabled, recommendedEnabled: next.recommendedEnabled || false, citedByEnabled: next.citedByEnabled || false, provider: next.provider };
+    lastError = "";
+    if (active()) { observer.observe(document.body, { childList: true, characterData: true, subtree: true }); scan(); }
+    else { clear(); notify(); }
   }
-  chrome.storage.onChanged.addListener((changes, area) => { if (area === "local" && changes.referenceTranslation) apply(changes.referenceTranslation.newValue); });
+  chrome.storage.onChanged.addListener((changes, area) => {
+    const change = changes.referenceTranslation;
+    if (area === "local" && change) apply(change.newValue, change.oldValue?.provider !== change.newValue.provider || JSON.stringify(change.oldValue?.credentials) !== JSON.stringify(change.newValue.credentials));
+  });
   chrome.runtime.onMessage.addListener((message, sender, respond) => { if (message.type === "REFERENCE_STATUS") respond({ ok: true, data: progress() }); });
-  addEventListener("visibilitychange", () => { if (!document.hidden && config.enabled) { scan(); pump(); } });
+  addEventListener("visibilitychange", () => { if (!document.hidden && active()) scan(); });
   globalThis.YanjiReferences = { collect, sourceText, progress };
   send({ type: "REF_STATE" }).then(apply).catch(error => console.error("研迹参考文献", error));
 })();

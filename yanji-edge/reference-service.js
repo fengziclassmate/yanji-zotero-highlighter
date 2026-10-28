@@ -8,9 +8,9 @@
     azure: { name: "微软 Azure", origin: "https://api.cognitive.microsofttranslator.com/*" }
   };
   let queue = Promise.resolve(), lastRequest = 0;
-  const flights = new Map(), controllers = new Set();
-  const config = async () => (await chrome.storage.local.get("referenceTranslation")).referenceTranslation || { enabled: false, provider: "niutrans", credentials: {} };
-  const state = value => ({ enabled: value.enabled, provider: value.provider, name: providers[value.provider].name, origin: providers[value.provider].origin, configured: ["google", "edge"].includes(value.provider) || !!value.credentials[value.provider]?.key });
+  const flights = new Map(), controllers = new Map();
+  const config = async () => ({ enabled: false, recommendedEnabled: false, citedByEnabled: false, provider: "niutrans", credentials: {}, ...(await chrome.storage.local.get("referenceTranslation")).referenceTranslation });
+  const state = value => ({ enabled: value.enabled, recommendedEnabled: value.recommendedEnabled, citedByEnabled: value.citedByEnabled, provider: value.provider, name: providers[value.provider].name, origin: providers[value.provider].origin, configured: ["google", "edge"].includes(value.provider) || !!value.credentials[value.provider]?.key });
   function validate(value) {
     if (!value || typeof value.enabled !== "boolean" || !providers[value.provider]) throw Error("翻译设置无效。");
     const credentials = {};
@@ -20,11 +20,14 @@
       if (typeof row.key !== "string" || row.key.length > 2048 || (row.region && !/^[a-z0-9-]{1,60}$/.test(row.region))) throw Error("API Key 或区域格式无效。");
       credentials[id] = { key: row.key.trim(), ...(id === "azure" ? { region: row.region === "global" ? "" : row.region || "" } : {}) };
     }
-    return { enabled: value.enabled, provider: value.provider, credentials };
+    for (const field of ["recommendedEnabled", "citedByEnabled"]) if (value[field] !== undefined && typeof value[field] !== "boolean") throw Error("翻译开关无效。");
+    return { enabled: value.enabled, recommendedEnabled: value.recommendedEnabled ?? false, citedByEnabled: value.citedByEnabled ?? false, provider: value.provider, credentials };
   }
   async function save(value) {
     const next = validate(value);
-    for (const controller of controllers) controller.abort();
+    const previous = await config();
+    const serviceChanged = next.provider !== previous.provider || JSON.stringify(next.credentials[next.provider]) !== JSON.stringify(previous.credentials[previous.provider]);
+    for (const [controller, scope] of controllers) if (serviceChanged || (!scope.test && !next[Y.translationScopes[scope.area]])) controller.abort();
     await chrome.storage.local.set({ referenceTranslation: next });
     return state(next);
   }
@@ -33,7 +36,7 @@
     if (!info.configured) throw Error("请先在翻译设置中填写 API Key。");
     if (!(await chrome.permissions.contains({ origins: [info.origin] }))) throw Error("请在翻译设置中允许访问所选服务。");
   }
-  async function request(value, text) {
+  async function request(value, text, area, test) {
     const { provider } = value, credential = value.credentials[provider] || {};
     let url, options;
     if (provider === "niutrans") {
@@ -53,11 +56,11 @@
       options = { method: "POST", headers: { "Content-Type": "application/json", "Ocp-Apim-Subscription-Key": credential.key, ...(credential.region ? { "Ocp-Apim-Subscription-Region": credential.region } : {}) }, body: JSON.stringify([{ Text: text }]) };
     }
     const controller = new AbortController();
-    controllers.add(controller);
+    controllers.set(controller, { area, test });
     try {
       let response;
       try { response = await fetch(url, { ...options, credentials: "omit", signal: AbortSignal.any([controller.signal, AbortSignal.timeout(25000)]) }); }
-      catch (error) { throw Error(controller.signal.aborted ? "翻译已停止。" : "连接翻译服务失败或超时，请检查网络。", { cause: error }); }
+      catch (error) { throw Object.assign(Error(controller.signal.aborted ? "翻译已停止。" : "连接翻译服务失败或超时，请检查网络。", { cause: error }), { code: controller.signal.aborted ? "TRANSLATION_CANCELLED" : "TRANSLATION_CONNECTION" }); }
       if (!response.ok) throw Error(`翻译服务返回 HTTP ${response.status}，请检查密钥、额度和网络。`);
       let data;
       try { data = await response.json(); } catch { throw Error("翻译服务返回了无效数据，请稍后重试。"); }
@@ -71,24 +74,28 @@
       return translated.trim();
     } finally { controllers.delete(controller); }
   }
-  async function translate(text, test = false) {
-    if (typeof text !== "string" || !text.trim() || text.length > 2000) throw Error("参考文献标题须为 1–2000 个字符。");
+  async function translate(text, test = false, area = "references") {
+    if (!Object.hasOwn(Y.translationScopes, area)) throw Error("翻译类别无效。");
+    if (typeof text !== "string" || !text.trim() || text.length > 2000) throw Error("文献标题须为 1–2000 个字符。");
     const initial = await config();
-    if (!test && !initial.enabled) throw Error("参考文献翻译已关闭。");
+    const active = value => value[Y.translationScopes[area]];
+    const stopped = () => Object.assign(Error("该类文献翻译已关闭或服务已切换。"), { code: "TRANSLATION_CANCELLED" });
+    if (!test && !active(initial)) throw stopped();
     await requireService(initial);
     const key = "referenceCache:" + await digest(initial.provider + "\n" + Y.normalize(text));
-    if (flights.has(key)) return flights.get(key);
+    const flightKey = key + ":" + area;
+    if (flights.has(flightKey)) return flights.get(flightKey);
     const work = async () => {
       const current = await config();
-      if (current.provider !== initial.provider || (!test && !current.enabled)) throw Error("参考文献翻译已关闭或服务已切换。");
+      if (current.provider !== initial.provider || (!test && !active(current))) throw stopped();
       const cached = (await chrome.storage.local.get(key))[key];
       if (!test && cached && Date.now() - cached.at < 30 * 86400000) return cached.text;
       const wait = Math.max(0, 600 - (Date.now() - lastRequest));
       if (wait) await new Promise(resolve => setTimeout(resolve, wait));
       const latest = await config();
-      if (latest.provider !== initial.provider || (!test && !latest.enabled)) throw Error("参考文献翻译已关闭或服务已切换。");
+      if (latest.provider !== initial.provider || (!test && !active(latest))) throw stopped();
       lastRequest = Date.now();
-      const translated = await request(latest, text);
+      const translated = await request(latest, text, area, test);
       const index = (await chrome.storage.local.get("referenceCacheIndex")).referenceCacheIndex || {};
       index[key] = Date.now();
       const expired = Object.keys(index).sort((a, b) => index[a] - index[b]).slice(0, Math.max(0, Object.keys(index).length - 1000));
@@ -97,9 +104,9 @@
       await chrome.storage.local.set({ [key]: { text: translated, at: Date.now() }, referenceCacheIndex: index });
       return translated;
     };
-    const task = queue.then(work, work).finally(() => flights.delete(key));
+    const task = queue.then(work, work).finally(() => flights.delete(flightKey));
     queue = task;
-    flights.set(key, task);
+    flights.set(flightKey, task);
     return task;
   }
   globalThis.YanjiReferencesService = { providers, config, state, save, translate, requireService };

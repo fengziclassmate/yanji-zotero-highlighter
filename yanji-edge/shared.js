@@ -129,5 +129,6 @@
     }
     return pairs;
   }
-  globalThis.Yanji = { defaults, uiColors, settingsWithDefaults, configSettings, icon, normalize, folderTitle, sentences, alignedEnglish, validatePairs, doi, cleanURL, pageID, escape, returnURL, summaryTitle, splitNote, renderManaged, planNote, noteLimit, markdown, validateSettings, validateAnnotation };
+  const translationScopes = { references: "enabled", recommended: "recommendedEnabled", citedBy: "citedByEnabled" };
+  globalThis.Yanji = { defaults, uiColors, translationScopes, settingsWithDefaults, configSettings, icon, normalize, folderTitle, sentences, alignedEnglish, validatePairs, doi, cleanURL, pageID, escape, returnURL, summaryTitle, splitNote, renderManaged, planNote, noteLimit, markdown, validateSettings, validateAnnotation };
 })();

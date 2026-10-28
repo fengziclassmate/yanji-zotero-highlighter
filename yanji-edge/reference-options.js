@@ -23,8 +23,9 @@
     remember();
     config.provider = selected;
     config.enabled = node("translation-enabled").checked;
-    if ((test || config.enabled) && !["google", "edge"].includes(selected) && !config.credentials[selected]?.key) throw Error("请填写 API Key。");
-    if (test || config.enabled || config.credentials[selected]?.key) {
+    const active = config.enabled || config.recommendedEnabled || config.citedByEnabled;
+    if ((test || active) && !["google", "edge"].includes(selected) && !config.credentials[selected]?.key) throw Error("请填写 API Key。");
+    if (test || active || config.credentials[selected]?.key) {
       const allowed = await chrome.permissions.request({ origins: [providers[selected].origin] });
       if (!allowed) throw Error("需要允许访问所选翻译服务。");
     }
@@ -45,6 +46,10 @@
   chrome.storage.onChanged.addListener((changes, area) => {
     const change = changes.referenceTranslation;
     if (area === "local" && change && node("translation-enabled").checked === (change.oldValue?.enabled || false)) node("translation-enabled").checked = change.newValue.enabled;
+    if (area === "local" && change && config) {
+      config.recommendedEnabled = change.newValue.recommendedEnabled || false;
+      config.citedByEnabled = change.newValue.citedByEnabled || false;
+    }
   });
   send({ type: "REF_SETTINGS_GET" }).then(result => {
     config = result.config;

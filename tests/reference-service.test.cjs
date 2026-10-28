@@ -9,6 +9,7 @@ require('../yanji-edge/reference-service.js');
 const R=YanjiReferencesService;
 (async()=>{
  assert.equal((await R.config()).enabled,false);
+ assert.equal((await R.config()).recommendedEnabled,false);assert.equal((await R.config()).citedByEnabled,false);
  for(const provider of Object.keys(R.providers)){
   await R.save({enabled:true,provider,credentials:{niutrans:{key:'test-niu'},googlecloud:{key:'test-google'},azure:{key:'test-azure',region:'eastasia'}}});
   const before=calls.length,text='A unique reference title for '+provider;
@@ -40,6 +41,18 @@ const R=YanjiReferencesService;
  storage.referenceCacheIndex=Object.fromEntries(Array.from({length:1000},(_,i)=>['referenceCache:old-'+i,i]));
  await R.translate('A title for bounded persistent cache verification');
  assert.equal(Object.keys(storage.referenceCacheIndex).length,1000);
+ const selected={enabled:false,recommendedEnabled:true,citedByEnabled:true,provider:'niutrans',credentials:{niutrans:{key:'test-secret'}}};
+ await R.save(selected);const beforeScopes=calls.length;
+ const pair=await Promise.all([R.translate('A title shared by recommended and citing articles',false,'recommended'),R.translate('A title shared by recommended and citing articles',false,'citedBy')]);assert.equal(pair[0],pair[1]);assert.equal(calls.length,beforeScopes+1,'Different categories share the persistent title cache');
+ await assert.rejects(R.translate('A reference is still off'),/已关闭/);await assert.rejects(R.translate('Invalid scope',false,'toString'),/类别无效/);
+ await R.save({...selected,enabled:true,recommendedEnabled:false});
+ let release;
+ response=(url,options)=>new Promise((resolve,reject)=>{release=()=>resolve(Response.json({tgt_text:'继续翻译中的参考文献'}));options.signal.addEventListener('abort',()=>reject(new DOMException('Aborted','AbortError')),{once:true})});
+ const reference=R.translate('Keep the active reference request running');while(!release)await new Promise(r=>setTimeout(r,25));
+ await R.save({...selected,enabled:true});release();assert.equal(await reference,'继续翻译中的参考文献','Enabling another category does not abort active requests');
+ response=(url,options)=>new URLSearchParams(options.body).get('src_text')==='Cancel only the recommended article'?new Promise((resolve,reject)=>options.signal.addEventListener('abort',()=>reject(new DOMException('Aborted','AbortError')),{once:true})):Promise.resolve(Response.json({tgt_text:'被引文章仍可继续'}));
+ const recommendation=R.translate('Cancel only the recommended article',false,'recommended');const aborted=assert.rejects(recommendation,error=>error.code==='TRANSLATION_CANCELLED');while(active===0)await new Promise(r=>setTimeout(r,25));const citing=R.translate('A citing article waiting behind it',false,'citedBy');await R.save({...selected,enabled:true,recommendedEnabled:false});await aborted;assert.equal(await citing,'被引文章仍可继续');
  await assert.rejects(R.save({enabled:true,provider:'unknown',credentials:{}}),/翻译设置无效/);
- console.log('PASS reference services: five provider protocols, masked credentials, cache and deduplication, global request limit, cancellation and 1000-entry bound');
+ await assert.rejects(R.save({...selected,citedByEnabled:'yes'}),/开关无效/);
+ console.log('PASS reference services: provider protocols, legacy/default-off scopes, shared cache, independent selection and cancellation, global request limit, credentials and 1000-entry bound');
 })().catch(error=>{console.error(error);process.exitCode=1});

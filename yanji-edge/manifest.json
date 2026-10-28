@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "研迹 · Zotero 网页标注",
-  "version": "0.6.3",
+  "version": "0.7.0",
   "description": "中文网页标注、原文段落定位，将九类摘录整理到 Zotero 10 的一份文献笔记。",
   "permissions": ["storage", "tabs", "sidePanel", "clipboardWrite", "unlimitedStorage"],
   "host_permissions": ["http://127.0.0.1:23119/*"],
