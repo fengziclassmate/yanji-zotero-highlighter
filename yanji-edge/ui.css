@@ -11,3 +11,5 @@ dialog{border:.5px solid var(--control-line);border-radius:10px;width:680px;max-
 .annotation-section{container-type:inline-size}.category-filters{display:grid;grid-template-columns:repeat(9,minmax(0,1fr));flex-basis:100%;justify-content:initial}.category-chip{min-width:0;padding-left:1px;padding-right:1px;gap:3px}@container (max-width:250px){.category-filters{grid-template-columns:repeat(3,minmax(0,1fr))}}
 
 .comment{padding:5px 8px;margin:6px 0;line-height:1.6}.edit textarea{min-height:60px;height:68px;padding:6px 8px}
+
+#bookmark-article[aria-pressed=true] svg{fill:currentColor}

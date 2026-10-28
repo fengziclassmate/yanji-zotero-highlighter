@@ -46,9 +46,9 @@
     }
     return found;
   }
-  function collect() {
+  function collectReferenceTitles() {
     const found = new Map();
-    if (enabled("references")) for (const root of document.querySelectorAll(roots)) {
+    for (const root of document.querySelectorAll(roots)) {
       for (const title of root.querySelectorAll(titles)) {
         if (title.closest(excluded)) continue;
         const entry = title.closest(rows), text = sourceText(title);
@@ -62,7 +62,31 @@
         if (link) found.set(entry, { title: link, area: "references" });
       }
     }
+    return found;
+  }
+  function collect() {
+    const found = enabled("references") ? collectReferenceTitles() : new Map();
     for (const [entry, source] of collectRelatedTitles()) if (enabled(source.area)) found.set(entry,source);
+    return found;
+  }
+  function collectBookmarkTitles() {
+    const found = collectRelatedTitles(), handled = new Set();
+    const referenceLink = (row,candidate) => {
+      const links = [...row.querySelectorAll("a[href]")].filter(a=>/^https?:/.test(a.href) && !a.getAttribute("href").startsWith("#"));
+      const direct = candidate?.matches("a[href]") ? candidate : candidate?.querySelector("a[href]");
+      return (links.includes(direct) ? direct : null) || links.find(a=>/^https?:\/\/(?:dx\.)?doi\.org\//i.test(a.href)) || links.find(a=>/\/science\/article\//.test(a.href) || /^view at publisher$/i.test(sourceText(a)));
+    };
+    for (const root of document.querySelectorAll(roots)) for (const candidate of root.querySelectorAll(titles)) {
+      if (candidate.closest(excluded)) continue;
+      const row = candidate.closest(rows), title = sourceText(candidate);
+      if (!row || !title || title.length > 2000 || handled.has(row)) continue;
+      const link = referenceLink(row,candidate);
+      if (link) {found.set(candidate, { title, url: link.href, mount: candidate.matches("a") ? candidate.parentElement : candidate, area: "references" });handled.add(row);}
+    }
+    for(const [row,reference] of collectReferenceTitles()) if(!handled.has(row)) {
+      const link=referenceLink(row,null);
+      if(link)found.set(row,{title:reference.title,url:link.href,mount:row,area:"references"});
+    }
     return found;
   }
   const progress = () => ({ enabled: active(), found: records.size, done: [...records.values()].filter(row => row.done).length, error: lastError });
@@ -137,6 +161,6 @@
   });
   chrome.runtime.onMessage.addListener((message, sender, respond) => { if (message.type === "REFERENCE_STATUS") respond({ ok: true, data: progress() }); });
   addEventListener("visibilitychange", () => { if (!document.hidden && active()) scan(); });
-  globalThis.YanjiReferences = { collect, collectRelatedTitles, sourceText, progress };
+  globalThis.YanjiReferences = { collect, collectRelatedTitles, collectBookmarkTitles, sourceText, progress };
   send({ type: "REF_STATE" }).then(apply).catch(error => console.error("研迹参考文献", error));
 })();

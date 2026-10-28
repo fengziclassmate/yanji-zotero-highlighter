@@ -1,12 +1,22 @@
 (() => {
   const node = id => document.getElementById(id);
-  let offset = 0, next = null, sequence = 0;
+  let offset = 0, next = null, sequence = 0, articleSaved = false;
+  node("bookmark-article").innerHTML = Yanji.icon("bookmark");
   node("return-source").innerHTML = Yanji.icon("back");
   node("resume-reading").innerHTML = Yanji.icon("resume");
   async function refreshContext() {
     const run = ++sequence;
     node("return-source").hidden = true; node("resume-reading").hidden = true;
+    node("bookmark-article").hidden = true;
     if (!page) return;
+    if (/^https?:/.test(page.url) && !((new URL(page.url).hostname.endsWith("scopus.com")) && /^\/(?:results|pages\/results)(?:\/|$)/.test(new URL(page.url).pathname))) {
+      const saved = await send({type:"READ_STATUS",urls:[page.url]});
+      if(run!==sequence)return;
+      articleSaved = saved.includes(Yanji.readingURL(page.url));
+      node("bookmark-article").hidden=false;
+      node("bookmark-article").setAttribute("aria-pressed",String(articleSaved));
+      node("bookmark-article").title=articleSaved?"移出稍后读":"加入稍后读";
+    }
     const info = await send({ type: "READ_INFO", tabId, meta: { url: page.url, title: page.title, doi: page.doi } });
     if (run !== sequence) return;
     node("return-source").hidden = !info.source;
@@ -25,6 +35,11 @@
     node("reading-list-next").disabled = next === null;
     node("reading-list-page").textContent = `${Math.floor(offset/50)+1} / ${Math.max(1,Math.ceil(result.count/50))}`;
   }
+  node("bookmark-article").onclick = async () => {
+    if(!page)return;
+    const current=page;node("bookmark-article").disabled=true;
+    try{await send({type:"READ_TOGGLE",url:current.url,title:current.title,saved:!articleSaved});await refreshContext();}catch(error){reportReading(error);}finally{node("bookmark-article").disabled=false;}
+  };
   const reportReading = error => report("#page-status", error);
   node("return-source").onclick = () => send({ type: "READ_SOURCE", tabId }).catch(reportReading);
   node("resume-reading").onclick = async () => {
@@ -45,6 +60,6 @@
   };
   document.addEventListener("yanji-context-changed", () => refreshContext().catch(reportReading));
   chrome.runtime.onMessage.addListener((message, sender) => { if (message.type === "READING_CHANGED" && sender.tab?.id === tabId) refreshContext().catch(reportReading); });
-  chrome.storage.onChanged.addListener((changes, area) => { if (area === "local" && Object.keys(changes).some(key => key.startsWith("later:"))) refreshList().catch(reportReading); });
+  chrome.storage.onChanged.addListener((changes, area) => { if (area === "local" && Object.keys(changes).some(key => key.startsWith("later:"))) {refreshList().catch(reportReading);refreshContext().catch(reportReading);} });
   refreshContext().catch(reportReading); refreshList(0).catch(reportReading);
 })();

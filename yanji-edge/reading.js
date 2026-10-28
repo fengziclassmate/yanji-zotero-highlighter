@@ -65,11 +65,11 @@
     if (document.hidden) return;
     const nextMeta = YanjiPage.metadata();
     if (!meta || Y.pageID(nextMeta) !== Y.pageID(meta)) { interacted=false;lastSavedY=-1;contextPromise=refreshContext(); }
-    const targets = YanjiReferences.collectRelatedTitles(), added = [];
+    const targets = YanjiReferences.collectBookmarkTitles(), added = [];
     for (const [entry, record] of buttons) if (!entry.isConnected || !record.button.isConnected || targets.get(entry)?.title !== record.title) { record.button.remove(); buttons.delete(entry); }
     for (const [entry, target] of targets) {
-      if (buttons.has(entry) || !entry.matches("a[href]")) continue;
-      const url = Y.readingURL(entry.href), mount = target.mount || entry.parentElement;
+      if (buttons.has(entry) || (!target.url && !entry.matches("a[href]"))) continue;
+      const url = Y.readingURL(target.url || entry.href), mount = target.mount || entry.parentElement;
       const button = document.createElement("button");button.type="button";button.dataset.yanjiSave="";button.innerHTML=Y.icon("bookmark");button.disabled=true;
       button.addEventListener("pointerup",event=>event.stopPropagation());
       const record={button,url,title:target.title,saved:false};setSaved(record,false);
