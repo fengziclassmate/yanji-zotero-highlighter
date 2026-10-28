@@ -3,7 +3,20 @@ const $ = selector => document.querySelector(selector);
 let page, settings, tabId, noteKey, loadSequence = 0, annotationPage = 0, archiveOffset = 0, archiveSequence = 0;
 let sentenceAnnotation, sentenceRows = [], sentenceRow = 0;
 const expandedQuotes = new Set();
-let undoTimer, focusTimer;
+let undoTimer, focusTimer, annotationsCollapsed = false;
+$("#annotation-chevron").innerHTML=Y.icon("down");
+function applyAnnotationVisibility(){
+ $("#annotation-content").hidden=annotationsCollapsed;
+ $("#category-filters").hidden=annotationsCollapsed||!page?.annotations.length;
+ $("#toggle-annotations").setAttribute("aria-expanded",String(!annotationsCollapsed));
+ $("#toggle-annotations").title=annotationsCollapsed?"展开标注区域":"折叠标注区域";
+ if(!annotationsCollapsed)updateQuoteFolds();
+}
+function setAnnotationsCollapsed(value){
+ annotationsCollapsed=value;applyAnnotationVisibility();
+ if(page)chrome.storage.local.set({["annotationCollapsed:"+page.id]:value}).catch(error=>report("#page-status",error));
+}
+$("#toggle-annotations").onclick=()=>setAnnotationsCollapsed(!annotationsCollapsed);
 const send = async message => {
   const result = await chrome.runtime.sendMessage(message);
   if (!result.ok) { const error = new Error(result.error); error.code = result.code; throw error; }
@@ -29,10 +42,11 @@ function paint() {
   $("#filter").value = filter;
   paintCategoryFilters();
   paintAnnotations();
+  applyAnnotationVisibility();
   document.dispatchEvent(new Event("yanji-context-changed"));
 }
 function paintCategoryFilters() {
-  $("#category-filters").hidden = !page.annotations.length;
+  $("#category-filters").hidden = annotationsCollapsed || !page.annotations.length;
   $("#category-filters").innerHTML = settings.categories.map(category => {
     const count = page.annotations.filter(row => row.category === category.id).length;
     return `<button class="category-chip" data-category="${category.id}" aria-pressed="${$("#filter").value === category.id}" aria-label="筛选 ${Y.escape(category.name)}" title="${Y.escape([category.name,category.meaning,`${count} 条`].filter(Boolean).join("，"))}"><i class="swatch" style="background:${category.color}"></i>${count ? `<span>${count}</span>` : ""}</button>`;
@@ -48,8 +62,9 @@ function updateQuoteFolds() {
   for (const card of document.querySelectorAll(".annotation")) {
     const text = card.querySelector(".quote-text"), button = card.querySelector('[data-action="expand"]');
     const expanded = card.classList.contains("quote-expanded");
-    button.hidden = !expanded && text.scrollHeight <= text.clientHeight + 1;
-    button.title = expanded ? "收起摘录" : "展开完整摘录";
+    const comment=card.querySelector(".comment");
+    button.hidden = !expanded && text.scrollHeight <= text.clientHeight + 1 && (!comment || comment.scrollHeight<=comment.clientHeight+1);
+    button.title = expanded ? "收起摘录与批注" : "展开摘录与批注";
     button.setAttribute("aria-label", button.title);
     button.setAttribute("aria-expanded", String(expanded));
   }
@@ -58,6 +73,7 @@ new ResizeObserver(updateQuoteFolds).observe($("#annotations"));
 function focusAnnotation(id) {
   const annotation = page?.annotations.find(row => row.id === id);
   if (!annotation) return;
+  if(annotationsCollapsed)setAnnotationsCollapsed(false);
   expandedQuotes.add(id);
   let card = [...document.querySelectorAll(".annotation")].find(row => row.dataset.id === id);
   if (!card) {
@@ -106,7 +122,7 @@ function paintAnnotations() {
   $("#annotations").innerHTML = rows.length ? rows.slice(annotationPage * 50, (annotationPage + 1) * 50).map(annotation => {
     const category = settings.categories.find(row => row.id === annotation.category);
     const original = [...new Set(annotation.segments.filter(segment => segment.translated).map(segment => segment.original))].join("\n\n");
-    return `<article class="annotation${expandedQuotes.has(annotation.id) ? " quote-expanded" : ""}" data-id="${Y.escape(annotation.id)}"><div class="annotation-header"><i class="swatch" style="background:${category.color}"></i><span>${Y.escape(category.name)}</span><span class="heading-label">${Y.escape(annotation.segments[0].heading || "正文")}</span></div><p class="quote"><span class="quote-text">${Y.escape(annotation.quote)}</span><span class="quote-actions"><button class="icon" data-action="expand" title="展开完整摘录" aria-label="展开完整摘录" hidden>${Y.icon("down")}</button><button class="icon quote-copy" data-action="copy" title="复制摘录；Shift+点击包含英文句对和批注" aria-label="复制摘录">${Y.icon("copy")}</button></span></p>${annotation.comment ? `<p class="comment">${Y.escape(annotation.comment)}</p>` : ""}<div class="original-row">${original ? (Y.alignedEnglish(annotation).length ? '<details class="source"><summary>对应英文</summary><div class="detail-body"></div></details>' : '<button class="locate-button source-link" data-action="original">原文段落</button>') : '<span class="muted">正文段落</span>'}${original ? `<button class="locate-button" data-action="align" title="中英句对齐" aria-label="中英句对齐">${annotation.segments.some(row => row.sentencePairs?.length) ? "已对齐" : "对齐"}</button>` : ""}<button class="locate-button" data-action="locate" title="定位段落" aria-label="定位段落">${Y.icon("locate")}定位</button></div><div class="edit-row"><details class="edit"><summary>分类与批注</summary><div class="detail-body"></div></details><button class="icon danger" data-action="delete" title="删除标注" aria-label="删除标注">${Y.icon("trash")}</button></div></article>`;
+    return `<article class="annotation${expandedQuotes.has(annotation.id) ? " quote-expanded" : ""}" data-id="${Y.escape(annotation.id)}"><div class="annotation-header"><i class="swatch" style="background:${category.color}"></i><span>${Y.escape(category.name)}</span><span class="heading-label">${Y.escape(annotation.segments[0].heading || "正文")}</span></div><p class="quote"><span class="quote-text">${Y.escape(annotation.quote)}</span><span class="quote-actions"><button class="icon" data-action="expand" title="展开完整摘录" aria-label="展开完整摘录" hidden>${Y.icon("down")}</button><button class="icon quote-copy" data-action="copy" title="复制摘录；Shift+点击包含英文句对和批注" aria-label="复制摘录">${Y.icon("copy")}</button></span></p>${annotation.comment ? `<p class="comment">${Y.escape(annotation.comment)}</p>` : ""}<div class="annotation-actions"><div class="original-row">${original ? (Y.alignedEnglish(annotation).length ? '<details class="source"><summary>对应英文</summary><div class="detail-body"></div></details>' : '<button class="locate-button source-link" data-action="original">原文段落</button>') : '<span class="muted">正文段落</span>'}${original ? `<button class="locate-button" data-action="align" title="中英句对齐" aria-label="中英句对齐">${annotation.segments.some(row => row.sentencePairs?.length) ? "已对齐" : "对齐"}</button>` : ""}<button class="locate-button" data-action="locate" title="定位段落" aria-label="定位段落">${Y.icon("locate")}</button></div><div class="edit-row"><details class="edit"><summary>分类与批注</summary><div class="detail-body"></div></details><button class="icon danger" data-action="delete" title="删除标注" aria-label="删除标注">${Y.icon("trash")}</button></div></div></article>`;
   }).join("") : '<p class="empty">' + (page.annotations.length ? "此分类暂无标注" : "选中正文，选择分类开始标注。") + "</p>";
   updateQuoteFolds();
 }
@@ -132,6 +148,9 @@ async function load() {
   if (sequence !== loadSequence) return;
   if (!result?.ok || !result.data.page) throw new Error("读取文章失败，请刷新文章页。");
   if (page?.id !== result.data.page.id) { annotationPage = 0; expandedQuotes.clear(); }
+  const savedArea=await chrome.storage.local.get("annotationCollapsed:"+result.data.page.id);
+  if(sequence!==loadSequence)return;
+  annotationsCollapsed=savedArea["annotationCollapsed:"+result.data.page.id]===true;
   page = result.data.page;
   settings = result.data.settings;
   noteKey = null;
@@ -342,6 +361,7 @@ chrome.tabs.onActivated.addListener(() => load().catch(error => report("#page-st
 chrome.tabs.onUpdated.addListener((id, change) => { if (id === tabId && change.status === "complete") load().catch(error => report("#page-status", error)); });
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== "local" || !page) return;
+  if(changes["annotationCollapsed:"+page.id]){annotationsCollapsed=changes["annotationCollapsed:"+page.id].newValue===true;applyAnnotationVisibility();}
   if (changes.settings) { settings = Y.settingsWithDefaults(changes.settings.newValue); paint(); }
   if (changes["page:" + page.id]) {
     const next = changes["page:" + page.id].newValue;
