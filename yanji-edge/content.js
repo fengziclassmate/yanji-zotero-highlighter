@@ -9,9 +9,9 @@
   const shadow = host.attachShadow({ mode: "open" });
   shadow.innerHTML = `<style>
     :host{${Object.entries(Y.uiColors).map(([name,value])=>name+":"+value).join(";")};all:initial;font:14px/1.5 "Segoe UI","Microsoft YaHei",sans-serif;color:var(--text)}
-*{box-sizing:border-box}button,select,textarea{font:inherit;color:inherit}button{cursor:pointer;background:color-mix(in srgb,var(--bg) 80%,transparent);border:.5px solid var(--control-line);border-radius:4px;padding:4px 8px;min-height:var(--button-size,28px);font-size:12px}button:hover{background:var(--bg)}button:focus-visible,select:focus-visible,textarea:focus-visible{outline:.5px solid var(--text);outline-offset:3px}button:disabled{cursor:wait;color:var(--muted)}button.primary{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}button.danger{color:var(--error)}button.swatch{display:inline-flex;gap:6px;align-items:center}.dot{width:10px;height:10px;border-radius:2px;flex:none}.menu,.editor{position:fixed;background:rgb(var(--panel-rgb) / var(--popup-opacity,.88));border:.5px solid var(--control-line);border-radius:8px;padding:8px;box-shadow:0 3px 12px var(--shadow);z-index:2147483647;max-width:calc(100vw - 20px);max-height:calc(100vh - 20px);resize:both;overflow:auto}.menu{min-width:220px;min-height:78px;padding-bottom:10px}.menu[hidden],.editor[hidden],.toast[hidden]{display:none}.tools{display:flex;gap:4px;align-items:center;margin-bottom:8px}.tools strong{margin-right:auto}.tools .close{margin-left:0}.icon{display:inline-flex;align-items:center;justify-content:center;width:var(--button-size,28px);padding:4px;background:transparent;border-color:transparent;flex:none}.menu-actions{float:right;display:flex;gap:2px;margin-left:6px}.categories{display:block;line-height:0}.categories button{line-height:1.5;vertical-align:top;margin:0 4px 4px 0}.editor{min-width:260px;min-height:300px;right:20px;top:80px}.editor label{display:block;font-size:12px;margin:12px 0 6px;color:var(--muted)}.editor select,.editor textarea{width:100%;border:.5px solid var(--control-line);border-radius:4px;padding:8px;background:color-mix(in srgb,var(--bg) 90%,transparent)}.editor textarea{min-height:96px;resize:vertical}.excerpt{max-height:96px;overflow:auto;font-size:14px;color:var(--muted);background:var(--ground);padding:8px;margin:8px 0;white-space:pre-wrap}.actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px}.hint{font-size:12px;color:var(--muted)}.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);max-width:min(580px,calc(100vw - 30px));padding:10px 16px;background:var(--accent);color:var(--on-accent);border-radius:4px;z-index:2147483647}.toast button{background:transparent;border:0;color:inherit;padding:0 0 0 12px;text-decoration:underline}.nav{position:fixed;right:3px;top:0;height:100vh;width:24px;pointer-events:none;z-index:2147483645}.nav button{position:absolute;width:22px;height:22px;min-height:22px;padding:5px;border:0;background:transparent;pointer-events:auto}.nav i{display:block;width:11px;height:11px;border-radius:50%;border:.5px solid var(--control-line)}strong{font-weight:600}
+*{box-sizing:border-box}button,select,textarea{font:inherit;color:inherit}button{cursor:pointer;background:color-mix(in srgb,var(--bg) 80%,transparent);border:.5px solid var(--control-line);border-radius:4px;padding:4px 8px;min-height:var(--button-size,28px);font-size:12px}button:hover{background:var(--bg)}button:focus-visible,select:focus-visible,textarea:focus-visible{outline:.5px solid var(--text);outline-offset:3px}button:disabled{cursor:wait;color:var(--muted)}button.primary{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}button.danger{color:var(--error)}button.swatch{display:inline-flex;gap:6px;align-items:center}.dot{width:10px;height:10px;border-radius:2px;flex:none}.menu,.editor{position:fixed;background:rgb(var(--panel-rgb) / var(--popup-opacity,.88));border:.5px solid var(--control-line);border-radius:8px;padding:8px;box-shadow:0 3px 12px var(--shadow);z-index:2147483647;max-width:calc(100vw - 20px);max-height:calc(100vh - 20px);resize:both;overflow:auto}.menu{min-width:220px;min-height:78px;padding-bottom:10px}[hidden]{display:none!important}.tools{display:flex;gap:4px;align-items:center;margin-bottom:8px}.tools strong{margin-right:auto}.tools .close{margin-left:0}.icon{display:inline-flex;align-items:center;justify-content:center;width:var(--button-size,28px);padding:4px;background:transparent;border-color:transparent;flex:none}.menu-actions{float:right;display:flex;gap:2px;margin-left:6px}.categories{display:block;line-height:0}.categories button{line-height:1.5;vertical-align:top;margin:0 4px 4px 0}.editor{min-width:260px;min-height:240px;right:20px;top:80px}.editor label{display:block;font-size:12px;margin:12px 0 6px;color:var(--muted)}.editor select,.editor textarea{width:100%;border:.5px solid var(--control-line);border-radius:4px;padding:8px;background:color-mix(in srgb,var(--bg) 90%,transparent)}.editor textarea{min-height:64px;height:72px;resize:vertical}.editor .tools{cursor:move;touch-action:none;user-select:none}.editor-categories{display:flex;gap:4px;flex-wrap:wrap}.editor-categories button{display:inline-flex;align-items:center;gap:4px;min-height:26px;padding:3px 6px}.editor-categories button[aria-pressed=true]{background:var(--element);border-color:var(--muted)}.excerpt{max-height:96px;overflow:auto;font-size:14px;color:var(--muted);background:var(--ground);padding:8px;margin:8px 0;white-space:pre-wrap}.actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px}.hint{font-size:12px;color:var(--muted)}.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);max-width:min(580px,calc(100vw - 30px));padding:10px 16px;background:var(--accent);color:var(--on-accent);border-radius:4px;z-index:2147483647}.toast button{background:transparent;border:0;color:inherit;padding:0 0 0 12px;text-decoration:underline}.nav{position:fixed;right:3px;top:0;height:100vh;width:24px;pointer-events:none;z-index:2147483645}.nav button{position:absolute;width:22px;height:22px;min-height:22px;padding:5px;border:0;background:transparent;pointer-events:auto}.nav i{display:block;width:11px;height:11px;border-radius:50%;border:.5px solid var(--control-line)}strong{font-weight:600}
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
-  </style><div class="menu" hidden role="toolbar" aria-label="选择标注分类"></div><section class="editor" hidden role="dialog" aria-label="编辑标注"><div class="tools"><strong>批注</strong><button class="icon" data-do="copy" title="复制摘录；Shift+点击包含英文句对和批注" aria-label="复制摘录">${Y.icon("copy")}</button><button class="icon close" data-do="cancel" title="关闭" aria-label="关闭">${Y.icon("close")}</button></div><div class="excerpt"></div><label for="yj-category">分类</label><select id="yj-category"></select><label for="yj-comment">我的批注</label><textarea id="yj-comment" placeholder="记录想法…"></textarea><div class="actions"><button class="primary" data-do="save">保存</button><span class="hint">Ctrl + Enter</span><button class="icon danger" data-do="delete" title="删除标注" aria-label="删除标注">${Y.icon("trash")}</button></div></section><div class="nav" aria-label="标注段落导航"></div><div class="toast" hidden role="status" aria-live="polite"></div>`;
+  </style><div class="menu" hidden role="toolbar" aria-label="选择标注分类"></div><section class="editor" hidden role="dialog" aria-label="编辑标注"><div class="tools"><strong>批注</strong><button class="icon" data-do="copy" title="复制摘录；Shift+点击包含英文句对和批注" aria-label="复制摘录">${Y.icon("copy")}</button><button class="icon close" data-do="cancel" title="关闭" aria-label="关闭">${Y.icon("close")}</button></div><div class="excerpt"></div><label for="yj-category">分类</label><select id="yj-category" hidden></select><div class="editor-categories" role="group" aria-label="标注分类"></div><label for="yj-comment">我的批注</label><textarea id="yj-comment" placeholder="记录想法…"></textarea><div class="actions"><button class="primary" data-do="save">保存</button><span class="hint">Ctrl + Enter</span><button class="icon danger" data-do="delete" title="删除标注" aria-label="删除标注">${Y.icon("trash")}</button></div></section><div class="nav" aria-label="标注段落导航"></div><div class="toast" hidden role="status" aria-live="polite"></div>`;
   document.documentElement.append(host);
   const menu = shadow.querySelector(".menu"), editor = shadow.querySelector(".editor"), toast = shadow.querySelector(".toast");
   const style = document.createElement("style");
@@ -87,9 +87,11 @@
     editor.querySelector(".excerpt").textContent = annotation.quote;
     editor.querySelector("select").innerHTML = settings.categories.map(row => `<option value="${row.id}">${Y.escape(row.name)}</option>`).join("");
     editor.querySelector("select").value = annotation.category;
+    editor.querySelector(".editor-categories").innerHTML=settings.categories.map(row=>`<button type="button" data-edit-category="${row.id}" aria-label="${Y.escape(row.name)}" aria-pressed="${row.id===annotation.category}" title="${Y.escape(row.meaning||row.name)}"><i class="dot" style="background:${row.color}"></i>${Y.escape(row.name)}</button>`).join("");
     editor.querySelector("textarea").value = annotation.comment;
     applyPopupSettings();
     editor.hidden = false;
+    placeEditor();
     editor.querySelector("textarea").focus();
   }
   async function saveEdit() {
@@ -184,7 +186,31 @@
       node.style.width = settings[prefix + "Width"] + "px";
       node.style.height = settings[prefix + "Height"] ? settings[prefix + "Height"] + "px" : "auto";
     }
+    placeEditor();
   }
+  let editorPosition;
+  function placeEditor() {
+    if (editor.hidden) return;
+    const rect = editor.getBoundingClientRect();
+    const position = editorPosition || {left:rect.left,top:rect.top};
+    editor.style.right = "auto";
+    editor.style.left = Math.max(10,Math.min(position.left,innerWidth-rect.width-10))+"px";
+    editor.style.top = Math.max(10,Math.min(position.top,innerHeight-rect.height-10))+"px";
+  }
+  chrome.storage.local.get("editorPosition").then(saved=>{editorPosition=saved.editorPosition;placeEditor();}).catch(report);
+  let dragging;
+  editor.querySelector(".tools").addEventListener("pointerdown",event=>{
+    if(event.button!==0||event.target.closest("button"))return;
+    const rect=editor.getBoundingClientRect();dragging={x:event.clientX,y:event.clientY,left:rect.left,top:rect.top};
+    event.currentTarget.setPointerCapture(event.pointerId);event.preventDefault();
+  });
+  editor.querySelector(".tools").addEventListener("pointermove",event=>{
+    if(!dragging)return;editorPosition={left:dragging.left+event.clientX-dragging.x,top:dragging.top+event.clientY-dragging.y};placeEditor();
+  });
+  editor.querySelector(".tools").addEventListener("pointerup",()=>{
+    if(!dragging)return;dragging=null;const rect=editor.getBoundingClientRect();editorPosition={left:rect.left,top:rect.top};chrome.storage.local.set({editorPosition}).catch(report);
+  });
+  addEventListener("resize",placeEditor);
   let resizing;
   shadow.addEventListener("pointerdown", event => {
     const node = event.target.closest(".menu,.editor");
@@ -213,6 +239,8 @@
     } catch (error) { report(error); }
   });
   editor.addEventListener("click", async event => {
+    const category = event.target.closest("[data-edit-category]");
+    if(category){editor.querySelector("select").value=category.dataset.editCategory;for(const button of editor.querySelectorAll("[data-edit-category]"))button.setAttribute("aria-pressed",String(button===category));return;}
     const action = event.target.closest("button")?.dataset.do;
     try {
       if (action === "copy") { const annotation=page.annotations.find(row=>row.id===editing); await navigator.clipboard.writeText(Y.copyAnnotation(annotation,event.shiftKey)); notice(event.shiftKey?"已复制双语摘录与批注":"已复制摘录"); }
