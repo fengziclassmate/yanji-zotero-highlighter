@@ -2,7 +2,7 @@
 
 在 Edge 网页正文中标注中文译文，用自己的颜色分类阅读内容，再更新到 Zotero 10 对应文献的一份笔记中。
 
-**当前版本：0.7.0。** 原生 Manifest V3 扩展，无构建步骤、第三方运行时依赖或自建服务器。网页标注和分类笔记无需额外的 Zotero 插件；要在 Zotero PDF 中显示原生高亮，安装下方的配套插件。无需填写 Zotero 账号密码或手动申请 Zotero API Key。
+**当前版本：0.7.1。** 原生 Manifest V3 扩展，无构建步骤、第三方运行时依赖或自建服务器。网页标注和分类笔记无需额外的 Zotero 插件；要在 Zotero PDF 中显示原生高亮，安装下方的配套插件。无需填写 Zotero 账号密码或手动申请 Zotero API Key。
 
 ## 安装到 Edge
 
@@ -31,7 +31,7 @@
 1. 点击研迹右上角偏好设置，打开独立设置弹窗，选择 **翻译**。重复点击会聚焦已有窗口，不新增标签页。拖动调整窗口大小或位置会自动在本机记忆，下次打开恢复；换到较小屏幕时保持在当前屏幕可见范围内。
 2. 选择翻译服务，填写自己的 API Key；Azure 区域按资源所在地填写，全球资源可留空。各服务的配置分别在本机保留。
 3. 点击 **测试翻译**，按浏览器提示允许访问该服务；成功后在文章侧栏按需勾选 **参考文献翻译**、**推荐文章**、**Cited by**，三项并列显示，独立控制。
-4. 滚动到相应区域，研迹保留原始英文，为已勾选类别添加中文标题。作者、期刊、年份、DOI 和其他插件的标签保留。推荐和 Cited by 目前按 ScienceDirect 卡片结构适配；网站未加载的文章不会主动请求加载。
+4. 滚动到相应区域，研迹保留原始英文，为已勾选类别添加中文标题。作者、期刊、年份、DOI 和其他插件的标签保留。推荐文章和 Cited by 支持 ScienceDirect 卡片；从被引区域跳转到 Scopus 文献结果列表后，继续沿用 **Cited by** 勾选项。网站未加载的文章和未打开的结果页不会主动请求加载。
 5. 取消某一项，只移除该类别的研迹译文并停止它的后续请求；其他已勾选类别保留。重新勾选优先使用已有缓存，同一标题跨类别共用缓存。
 
 | 服务 | 配置 |
@@ -53,6 +53,14 @@
 实现时参考 [Translate for Zotero](https://github.com/windingwind/zotero-pdf-translate) 的服务接入资料。研迹独立实现浏览器端逻辑，未引入该项目的代码、依赖或 Zotero 插件。
 
 官方 API 文档：[小牛翻译](https://niutrans.com/documents/contents/trans_detection)、[Google Cloud](https://docs.cloud.google.com/translate/docs/basic/translating-text)、[微软 Azure](https://learn.microsoft.com/en-us/azure/cognitive-services/translator/quickstart-translator)。
+
+### Scopus 结果列表
+
+从 ScienceDirect 的被引列表打开 Scopus 后，在研迹侧栏勾选 **Cited by** 即可翻译结果标题，无需新配置服务或新增开关。中文显示在原标题下方，原链接、作者、期刊与年份保持不变。
+
+支持当前 Scopus 结果列表中指向 `/pages/publications/` 的文献标题；翻页、排序或列表重新渲染后，按当前可见标题继续翻译。重复出现或返回上一页的标题优先复用缓存。只处理浏览器已经正常打开的列表，不自动点击下一页或抓取全部被引结果。会话参数不会作为翻译内容发送，也不需要把带会话参数的链接分享给别人。
+
+[Scopus 标题翻译示例](docs/scopus-results.png)
 
 ## 中英句对齐
 

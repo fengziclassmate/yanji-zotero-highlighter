@@ -51,6 +51,13 @@
         }
       }
     }
+    if (enabled("citedBy") && (location.hostname === "scopus.com" || location.hostname.endsWith(".scopus.com")) && /^\/(?:results|pages\/results)(?:\/|$)/.test(location.pathname)) {
+      for (const entry of document.querySelectorAll('table h3 a[href*="/pages/publications/"]')) {
+        if (entry.closest(excluded)) continue;
+        const text = sourceText(entry);
+        if (eligible(text)) found.set(entry, { title: text, area: "citedBy", mount: entry.closest("h3") });
+      }
+    }
     return found;
   }
   const progress = () => ({ enabled: active(), found: records.size, done: [...records.values()].filter(row => row.done).length, error: lastError });
@@ -82,7 +89,7 @@
           node.lang = "zh-CN";
           node.style.cssText = `display:block;margin:4px 0 0;font:inherit;line-height:1.65;color:${Y.uiColors["--muted"]}`;
           node.textContent = text;
-          row.entry.append(node);
+          (row.mount || row.entry).append(node);
           row.node = node;
           row.done = true;
         } catch (error) { if (run === generation && records.get(row.entry) === row && enabled(row.area) && error.code !== "TRANSLATION_CANCELLED") { console.error("研迹文献翻译", error); lastError = error.message; } }
@@ -102,13 +109,13 @@
     if (!active() || document.hidden) return;
     if (location.href !== currentURL) { clear(); currentURL = location.href; observer.observe(document.body, { childList: true, characterData: true, subtree: true }); }
     const found = collect();
-    for (const [entry, row] of records) if (!entry.isConnected || found.get(entry)?.title !== row.title || found.get(entry)?.area !== row.area) { row.node?.remove(); visible.unobserve(entry); records.delete(entry); }
+    for (const [entry, row] of records) if (!entry.isConnected || (row.node && !row.node.isConnected) || found.get(entry)?.title !== row.title || found.get(entry)?.area !== row.area || found.get(entry)?.mount !== row.mount) { row.node?.remove(); visible.unobserve(entry); records.delete(entry); }
     for (const [entry, source] of found) if (!records.has(entry)) { const row = { entry, ...source, queued: false, done: false }; records.set(entry, row); visible.observe(entry); }
     notify();
     pump();
   }
   const observer = new MutationObserver(mutations => {
-    if (document.hidden || !mutations.some(mutation => !(mutation.target.nodeType === Node.ELEMENT_NODE ? mutation.target : mutation.target.parentElement).closest(excluded) && (mutation.type === "characterData" || [...mutation.addedNodes, ...mutation.removedNodes].some(node => node.nodeType !== Node.ELEMENT_NODE || !node.matches('[data-yanji-ref-translation]'))))) return;
+    if (document.hidden || !mutations.some(mutation => !(mutation.target.nodeType === Node.ELEMENT_NODE ? mutation.target : mutation.target.parentElement)?.closest(excluded) && (mutation.type === "characterData" || [...mutation.addedNodes, ...mutation.removedNodes].some(node => node.nodeType !== Node.ELEMENT_NODE || !node.matches('[data-yanji-ref-translation]'))))) return;
     clearTimeout(timer);
     timer = setTimeout(scan, 350);
   });
