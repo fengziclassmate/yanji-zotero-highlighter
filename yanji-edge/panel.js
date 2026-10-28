@@ -2,6 +2,8 @@ const Y = Yanji;
 const $ = selector => document.querySelector(selector);
 let page, settings, tabId, noteKey, loadSequence = 0, annotationPage = 0, archiveOffset = 0, archiveSequence = 0;
 let sentenceAnnotation, sentenceRows = [], sentenceRow = 0;
+const expandedQuotes = new Set();
+let undoTimer, focusTimer;
 const send = async message => {
   const result = await chrome.runtime.sendMessage(message);
   if (!result.ok) { const error = new Error(result.error); error.code = result.code; throw error; }
@@ -19,13 +21,65 @@ function paint() {
   $("#query").value = page.doi || page.title;
   $("#binding").textContent = page.binding ? page.binding.title : "尚未关联文献";
 
-  $("#sync").disabled = !page.annotations.length;
+  $("#sync").disabled = !page.annotations.length && !page.sync?.noteKey;
   paintConnection();
   $("#count").textContent = `${page.annotations.length} 条标注`;
   const filter = $("#filter").value;
   $("#filter").innerHTML = '<option value="">全部分类</option>' + settings.categories.map(row => `<option value="${row.id}">${Y.escape(row.name)} (${page.annotations.filter(annotation => annotation.category === row.id).length})</option>`).join("");
   $("#filter").value = filter;
+  paintCategoryFilters();
   paintAnnotations();
+  document.dispatchEvent(new Event("yanji-context-changed"));
+}
+function paintCategoryFilters() {
+  $("#category-filters").hidden = !page.annotations.length;
+  $("#category-filters").innerHTML = settings.categories.map(category => {
+    const count = page.annotations.filter(row => row.category === category.id).length;
+    return `<button class="category-chip" data-category="${category.id}" aria-pressed="${$("#filter").value === category.id}" aria-label="筛选 ${Y.escape(category.name)}" title="${Y.escape([category.name,category.meaning,`${count} 条`].filter(Boolean).join("，"))}"><i class="swatch" style="background:${category.color}"></i>${count ? `<span>${count}</span>` : ""}</button>`;
+  }).join("");
+}
+$("#category-filters").onclick = event => {
+  const button = event.target.closest("[data-category]");
+  if (!button) return;
+  $("#filter").value = $("#filter").value === button.dataset.category ? "" : button.dataset.category;
+  annotationPage = 0; paintCategoryFilters(); paintAnnotations();
+};
+function updateQuoteFolds() {
+  for (const card of document.querySelectorAll(".annotation")) {
+    const text = card.querySelector(".quote-text"), button = card.querySelector('[data-action="expand"]');
+    const expanded = card.classList.contains("quote-expanded");
+    button.hidden = !expanded && text.scrollHeight <= text.clientHeight + 1;
+    button.title = expanded ? "收起摘录" : "展开完整摘录";
+    button.setAttribute("aria-label", button.title);
+    button.setAttribute("aria-expanded", String(expanded));
+  }
+}
+new ResizeObserver(updateQuoteFolds).observe($("#annotations"));
+function focusAnnotation(id) {
+  const annotation = page?.annotations.find(row => row.id === id);
+  if (!annotation) return;
+  expandedQuotes.add(id);
+  let card = [...document.querySelectorAll(".annotation")].find(row => row.dataset.id === id);
+  if (!card) {
+    if ($("#filter").value && $("#filter").value !== annotation.category) $("#filter").value = "";
+    const rows = page.annotations.filter(row => !$("#filter").value || row.category === $("#filter").value).sort((a,b)=>a.segments[0].index-b.segments[0].index);
+    annotationPage = Math.floor(rows.findIndex(row=>row.id===id)/50);
+    paintCategoryFilters(); paintAnnotations();
+    card = [...document.querySelectorAll(".annotation")].find(row => row.dataset.id === id);
+  } else { card.classList.add("quote-expanded"); updateQuoteFolds(); }
+  card.scrollIntoView({ block: "center", behavior: "auto" });
+  card.classList.add("annotation-focused");
+  clearTimeout(focusTimer); focusTimer = setTimeout(()=>card.classList.remove("annotation-focused"),1500);
+}
+function offerUndo(token) {
+  clearTimeout(undoTimer); $("#undo-toast").hidden = false;
+  $("#undo-delete").disabled = false;
+  $("#undo-delete").onclick = async () => {
+    $("#undo-delete").disabled = true;
+    try { const restored = await send({type:"ANN_UNDO",token}); if (page?.id===restored.id) { page=restored;paint(); } $("#undo-toast").hidden=true; }
+    catch(error){report("#page-status",error);}
+  };
+  undoTimer=setTimeout(()=>{$("#undo-toast").hidden=true;},8000);
 }
 function paintConnection() {
   $("#binding").hidden=!page.binding||(page.binding.via==='doi'||Y.normalize(page.binding.title).toLowerCase()===Y.normalize(page.title).toLowerCase());
@@ -43,6 +97,7 @@ function paintConnection() {
 }
 function paintAnnotations() {
   const rows = page.annotations.filter(row => !$("#filter").value || row.category === $("#filter").value).sort((a, b) => a.segments[0].index - b.segments[0].index);
+  $("#count").textContent = $("#filter").value ? `${rows.length} / ${page.annotations.length} 条标注` : `${rows.length} 条标注`;
   annotationPage = Math.max(0, Math.min(annotationPage, Math.ceil(rows.length / 50) - 1));
   $("#annotation-pages").hidden = rows.length <= 50;
   $("#ann-page").textContent = `${annotationPage + 1} / ${Math.ceil(rows.length / 50)}`;
@@ -51,8 +106,9 @@ function paintAnnotations() {
   $("#annotations").innerHTML = rows.length ? rows.slice(annotationPage * 50, (annotationPage + 1) * 50).map(annotation => {
     const category = settings.categories.find(row => row.id === annotation.category);
     const original = [...new Set(annotation.segments.filter(segment => segment.translated).map(segment => segment.original))].join("\n\n");
-    return `<article class="annotation" data-id="${Y.escape(annotation.id)}"><div class="annotation-header"><i class="swatch" style="background:${category.color}"></i><span>${Y.escape(category.name)}</span><span class="heading-label">${Y.escape(annotation.segments[0].heading || "正文")}</span></div><p class="quote">${Y.escape(annotation.quote)}<button class="icon quote-copy" data-action="copy" title="复制摘录" aria-label="复制摘录">${Y.icon("copy")}</button></p>${annotation.comment ? `<p class="comment">${Y.escape(annotation.comment)}</p>` : ""}<div class="original-row">${original ? (Y.alignedEnglish(annotation).length ? '<details class="source"><summary>对应英文</summary><div class="detail-body"></div></details>' : '<button class="locate-button source-link" data-action="original">原文段落</button>') : '<span class="muted">正文段落</span>'}${original ? `<button class="locate-button" data-action="align" title="中英句对齐" aria-label="中英句对齐">${annotation.segments.some(row => row.sentencePairs?.length) ? "已对齐" : "对齐"}</button>` : ""}<button class="locate-button" data-action="locate" title="定位段落" aria-label="定位段落">${Y.icon("locate")}定位</button></div><div class="edit-row"><details class="edit"><summary>分类与批注</summary><div class="detail-body"></div></details><button class="icon danger" data-action="delete" title="删除标注" aria-label="删除标注">${Y.icon("trash")}</button></div></article>`;
+    return `<article class="annotation${expandedQuotes.has(annotation.id) ? " quote-expanded" : ""}" data-id="${Y.escape(annotation.id)}"><div class="annotation-header"><i class="swatch" style="background:${category.color}"></i><span>${Y.escape(category.name)}</span><span class="heading-label">${Y.escape(annotation.segments[0].heading || "正文")}</span></div><p class="quote"><span class="quote-text">${Y.escape(annotation.quote)}</span><span class="quote-actions"><button class="icon" data-action="expand" title="展开完整摘录" aria-label="展开完整摘录" hidden>${Y.icon("down")}</button><button class="icon quote-copy" data-action="copy" title="复制摘录；Shift+点击包含英文句对和批注" aria-label="复制摘录">${Y.icon("copy")}</button></span></p>${annotation.comment ? `<p class="comment">${Y.escape(annotation.comment)}</p>` : ""}<div class="original-row">${original ? (Y.alignedEnglish(annotation).length ? '<details class="source"><summary>对应英文</summary><div class="detail-body"></div></details>' : '<button class="locate-button source-link" data-action="original">原文段落</button>') : '<span class="muted">正文段落</span>'}${original ? `<button class="locate-button" data-action="align" title="中英句对齐" aria-label="中英句对齐">${annotation.segments.some(row => row.sentencePairs?.length) ? "已对齐" : "对齐"}</button>` : ""}<button class="locate-button" data-action="locate" title="定位段落" aria-label="定位段落">${Y.icon("locate")}定位</button></div><div class="edit-row"><details class="edit"><summary>分类与批注</summary><div class="detail-body"></div></details><button class="icon danger" data-action="delete" title="删除标注" aria-label="删除标注">${Y.icon("trash")}</button></div></article>`;
   }).join("") : '<p class="empty">' + (page.annotations.length ? "此分类暂无标注" : "选中正文，选择分类开始标注。") + "</p>";
+  updateQuoteFolds();
 }
 async function load() {
   const sequence = ++loadSequence;
@@ -62,6 +118,7 @@ async function load() {
     $("#title").textContent = "请打开文章正文";
     status("#page-status", "浏览器设置页、扩展商店和内置 PDF 阅读器不支持网页标注。可从下方打开已保存的文章。");
     page = null;
+    document.dispatchEvent(new Event("yanji-context-changed"));
     $("#source").textContent="";$("#copy-doi").hidden=true;
     $("#zotero-section").hidden=true;$("#annotation-section").hidden=true;$("#reference-tools").hidden=true;
     $("#copy-title").disabled=true;$("#copy-folder-title").disabled=true;
@@ -74,7 +131,7 @@ async function load() {
   catch (error) { throw new Error("文章页尚未加载研迹。安装或更新扩展后，请刷新文章页；本地 HTML 还需在扩展详情中允许访问文件网址。", { cause: error }); }
   if (sequence !== loadSequence) return;
   if (!result?.ok || !result.data.page) throw new Error("读取文章失败，请刷新文章页。");
-  if (page?.id !== result.data.page.id) annotationPage = 0;
+  if (page?.id !== result.data.page.id) { annotationPage = 0; expandedQuotes.clear(); }
   page = result.data.page;
   settings = result.data.settings;
   noteKey = null;
@@ -108,7 +165,7 @@ async function search() {
   finally { $("#search").disabled = false; }
 }
 async function sync(force = false) {
-  if (!page?.annotations.length) return;
+  if (!page || (!page.annotations.length && !page.sync?.noteKey)) return;
   $("#sync").disabled = true;
   $("#force-sync").hidden = true;
   status("#sync-status", "正在更新…");
@@ -120,7 +177,7 @@ async function sync(force = false) {
   } catch (error) {
     report("#sync-status", error);
     if (error.code === "MANAGED_CONFLICT") $("#force-sync").hidden = false;
-  } finally { $("#sync").disabled = !page?.annotations.length; }
+  } finally { $("#sync").disabled = !page || (!page.annotations.length && !page.sync?.noteKey); }
 }
 $("#options").innerHTML = Y.icon("settings");
 $("#connect").innerHTML = Y.icon("refresh");
@@ -170,7 +227,7 @@ $("#match-results").onclick = async event => {
 };
 $("#sync").onclick = () => sync();
 $("#force-sync").onclick = () => { if (confirm("重新生成这份专用笔记的摘录区？摘录区中的手动修改会被替换，文末“我的总结”会保留。")) sync(true); };
-$("#filter").onchange = () => { annotationPage = 0; paintAnnotations(); };
+$("#filter").onchange = () => { annotationPage = 0; paintCategoryFilters(); paintAnnotations(); };
 $("#ann-prev").onclick = () => { annotationPage--; paintAnnotations(); };
 $("#ann-next").onclick = () => { annotationPage++; paintAnnotations(); };
 $("#archive").ontoggle = () => { if ($("#archive").open) loadArchive().catch(error => report("#page-status", error)); };
@@ -251,7 +308,10 @@ $("#annotations").onclick = async event => {
   const card = button.closest(".annotation"), id = card.dataset.id;
   const annotation = page.annotations.find(row => row.id === id);
   try {
-    if (button.dataset.action === "original") {
+    if (button.dataset.action === "expand") {
+      if (expandedQuotes.has(id)) expandedQuotes.delete(id); else expandedQuotes.add(id);
+      card.classList.toggle("quote-expanded", expandedQuotes.has(id)); updateQuoteFolds();
+    } else if (button.dataset.action === "original") {
       $("#original-body").replaceChildren(...[...new Set(annotation.segments.filter(row => row.translated).map(row => row.original))].map(original => {
         const text = document.createElement("p"); text.className = "original"; text.textContent = original; return text;
       }));
@@ -263,13 +323,13 @@ $("#annotations").onclick = async event => {
         status("#page-status", result.data.message, result.data.found ? "" : "error");
       } else await chrome.tabs.create({ url: Y.returnURL(annotation) });
     } else if (button.dataset.action === "copy") {
-      await navigator.clipboard.writeText(`[${annotation.title}](${annotation.url}) ${annotation.quote}${annotation.comment ? "\n想法：" + annotation.comment : ""}`);
-      status("#page-status", "已复制标题、链接、摘录与想法。");
+      await navigator.clipboard.writeText(Y.copyAnnotation(annotation,event.shiftKey));
+      status("#page-status",event.shiftKey ? "已复制双语摘录与批注" : "已复制摘录");
     } else if (button.dataset.action === "save") {
       page = await send({ type: "ANN_UPDATE", pageId: page.id, id, category: card.querySelector("select").value, comment: card.querySelector("textarea").value });
       paint(); status("#sync-status", "修改已保存在浏览器，点击更新笔记写入 Zotero。");
-    } else if (button.dataset.action === "delete" && confirm("删除这条标注？更新 Zotero 笔记后，摘录区会相应移除。")) {
-      page = await send({ type: "ANN_DELETE", pageId: page.id, id }); paint(); status("#sync-status", "标注已删除，点击更新笔记同步摘录区。");
+    } else if (button.dataset.action === "delete") {
+      const result = await send({ type: "ANN_DELETE", pageId: page.id, id }); page=result.page; paint(); offerUndo(result.undoToken); status("#sync-status", "待更新笔记");
     }
   } catch (error) { report("#page-status", error); }
 };
@@ -277,6 +337,7 @@ $("#annotations").onkeydown = event => {
   if (event.key === "Enter" && (event.ctrlKey || event.metaKey) && event.target.matches("textarea")) { event.preventDefault(); event.target.closest(".annotation").querySelector('[data-action="save"]').click(); }
 };
 $("#saved-pages").onclick = event => { const url = event.target.closest("button")?.dataset.url; if (url) chrome.tabs.create({ url }); };
+chrome.runtime.onMessage.addListener((message,sender)=>{ if(message.type==="ANN_FOCUS" && sender.tab?.id===tabId && message.pageId===page?.id) focusAnnotation(message.id); });
 chrome.tabs.onActivated.addListener(() => load().catch(error => report("#page-status", error)));
 chrome.tabs.onUpdated.addListener((id, change) => { if (id === tabId && change.status === "complete") load().catch(error => report("#page-status", error)); });
 chrome.storage.onChanged.addListener((changes, area) => {

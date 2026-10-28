@@ -25,6 +25,27 @@
   const eligible = text => text.length >= 3 && text.length <= 2000 && /[a-z]{2}/i.test(text) && (text.match(/[\u3400-\u9fff]/g)?.length || 0) < text.length / 5 && !/^https?:|^doi\b/i.test(text);
   const enabled = area => !!config[Y.translationScopes[area]];
   const active = () => Object.keys(Y.translationScopes).some(enabled);
+  function collectRelatedTitles() {
+    const found = new Map();
+    for (const [area, selector] of Object.entries(relatedAreas)) {
+      for (const root of document.querySelectorAll(selector)) {
+        for (const candidate of root.querySelectorAll('a[id$="-title"],.related-article-card .article-title,.related-article-card h3')) {
+          const entry = candidate.matches("a") ? candidate : candidate.querySelector("a") || candidate;
+          if (entry.closest(excluded) || found.has(entry)) continue;
+          const text = sourceText(entry);
+          if (eligible(text)) found.set(entry, { title: text, area });
+        }
+      }
+    }
+    if ((location.hostname === "scopus.com" || location.hostname.endsWith(".scopus.com")) && /^\/(?:results|pages\/results)(?:\/|$)/.test(location.pathname)) {
+      for (const entry of document.querySelectorAll('table h3 a[href*="/pages/publications/"]')) {
+        if (entry.closest(excluded)) continue;
+        const text = sourceText(entry);
+        if (eligible(text)) found.set(entry, { title: text, area: "citedBy", mount: entry.closest("h3") });
+      }
+    }
+    return found;
+  }
   function collect() {
     const found = new Map();
     if (enabled("references")) for (const root of document.querySelectorAll(roots)) {
@@ -41,23 +62,7 @@
         if (link) found.set(entry, { title: link, area: "references" });
       }
     }
-    for (const [area, selector] of Object.entries(relatedAreas)) if (enabled(area)) {
-      for (const root of document.querySelectorAll(selector)) {
-        for (const candidate of root.querySelectorAll('a[id$="-title"],.related-article-card .article-title,.related-article-card h3')) {
-          const entry = candidate.matches("a") ? candidate : candidate.querySelector("a") || candidate;
-          if (entry.closest(excluded) || found.has(entry)) continue;
-          const text = sourceText(entry);
-          if (eligible(text)) found.set(entry, { title: text, area });
-        }
-      }
-    }
-    if (enabled("citedBy") && (location.hostname === "scopus.com" || location.hostname.endsWith(".scopus.com")) && /^\/(?:results|pages\/results)(?:\/|$)/.test(location.pathname)) {
-      for (const entry of document.querySelectorAll('table h3 a[href*="/pages/publications/"]')) {
-        if (entry.closest(excluded)) continue;
-        const text = sourceText(entry);
-        if (eligible(text)) found.set(entry, { title: text, area: "citedBy", mount: entry.closest("h3") });
-      }
-    }
+    for (const [entry, source] of collectRelatedTitles()) if (enabled(source.area)) found.set(entry,source);
     return found;
   }
   const progress = () => ({ enabled: active(), found: records.size, done: [...records.values()].filter(row => row.done).length, error: lastError });
@@ -132,6 +137,6 @@
   });
   chrome.runtime.onMessage.addListener((message, sender, respond) => { if (message.type === "REFERENCE_STATUS") respond({ ok: true, data: progress() }); });
   addEventListener("visibilitychange", () => { if (!document.hidden && active()) scan(); });
-  globalThis.YanjiReferences = { collect, sourceText, progress };
+  globalThis.YanjiReferences = { collect, collectRelatedTitles, sourceText, progress };
   send({ type: "REF_STATE" }).then(apply).catch(error => console.error("研迹参考文献", error));
 })();

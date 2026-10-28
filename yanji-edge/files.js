@@ -26,7 +26,7 @@
   }
   async function restore(backup, progress) {
     if (backup?.format !== "yanji-backup" || backup.version !== 1 || !Array.isArray(backup.pages)) throw new Error("这不是有效的研迹备份文件。");
-    const token = await request({ type: "IMPORT_BEGIN", settings: backup.settings,pdfLinks:backup.pdfLinks });
+    const token = await request({ type: "IMPORT_BEGIN", settings: backup.settings,pdfLinks:backup.pdfLinks, readingData: backup.readingData });
     let count = 0;
     try {
       for (const page of backup.pages) {

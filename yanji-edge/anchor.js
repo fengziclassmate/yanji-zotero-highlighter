@@ -174,5 +174,5 @@
     }
     return { block, range: null, status: "paragraph" };
   }
-  globalThis.YanjiAnchor = { capture, resolve, allBlocks, indexBlocks, text, textNodes, findRange, translated };
+  globalThis.YanjiAnchor = { capture, resolve, paragraph, originalBlock, blocks, allBlocks, indexBlocks, text, textNodes, findRange, translated };
 })();

@@ -1,4 +1,4 @@
-importScripts("shared.js", "zotero.js", "store.js", "pdf-sync.js", "reference-service.js");
+importScripts("shared.js", "zotero.js", "reading-store.js", "store.js", "pdf-sync.js", "reference-service.js");
 const Y = Yanji;
 const Z = YanjiZotero;
 const S = YanjiStore;
@@ -59,7 +59,7 @@ function pageOpen(id) {
   if (openFlights.has(id)) return openFlights.get(id);
   const task = (async () => {
     let page = await getPage(id);
-    if (!page?.annotations.length) return page;
+    if (!page || (!page.annotations.length && !page.sync?.noteKey)) return page;
     try {
       page = await matchDOI(id);
       if (page.binding && (await getSettings()).autoSyncOnOpen) {
@@ -131,6 +131,22 @@ async function syncPage(id, force, interactive = true) {
 async function handle(message, sender) {
   const internal = sender.url?.startsWith(chrome.runtime.getURL(""));
   const { type } = message;
+  if (type === "ANN_FOCUS" || type === "READING_CHANGED") return true;
+  if (type.startsWith("READ_")) {
+    const R = YanjiReadingStore;
+    if (!internal && !/^(https?:|file:)/.test(sender.tab?.url || "")) throw Error("阅读操作来源无效。");
+    if (["READ_INFO", "READ_LIST", "READ_OPEN", "READ_SOURCE"].includes(type) && !internal) throw Error("此操作仅限研迹界面。");
+    if (type === "READ_CONTEXT") return mutate(() => R.context(message.meta, message.instance, sender.tab));
+    if (type === "READ_INFO") return R.info(message.tabId, message.meta);
+    if (type === "READ_POINT") return mutate(() => R.savePoint(message.meta, message.point));
+    if (type === "READ_TRAIL") return mutate(() => R.captureTrail(message.meta, message.href, message.point, sender.tab));
+    if (type === "READ_STATUS") return R.status(message.urls);
+    if (type === "READ_TOGGLE") return mutate(() => R.toggle(message.url, message.title, message.saved));
+    if (type === "READ_LIST") return R.list(Number.isInteger(message.offset) && message.offset >= 0 ? message.offset : 0, !!message.countOnly);
+    if (type === "READ_OPEN") return R.open(message.url);
+    if (type === "READ_SOURCE") return R.returnSource(message.tabId);
+    throw Error("未知阅读操作。");
+  }
   if (type === "OPTIONS_OPEN") {
     if (!internal || ![undefined, "", "translation", "backup"].includes(message.section) || !["left", "top", "width", "height"].every(key => Number.isFinite(message.display?.[key]))) throw Error("设置入口无效。");
     return openOptions(message.section, message.display);
@@ -182,7 +198,12 @@ async function handle(message, sender) {
     const page = await getPage(message.pageId);
     const annotation = page?.annotations.find(row => row.id === message.id);
     if (!annotation) throw new Error("这条标注已不存在，请刷新页面。");
-    if (type === "ANN_DELETE") page.annotations = page.annotations.filter(row => row.id !== message.id);
+    let undoToken;
+    if (type === "ANN_DELETE") {
+      undoToken = crypto.randomUUID();
+      await chrome.storage.session.set({ annotationUndo: { token: undoToken, pageId: page.id, annotation, index: page.annotations.indexOf(annotation), expiresAt: Date.now() + 8000 } });
+      page.annotations = page.annotations.filter(row => row.id !== message.id);
+    }
     else {
       const settings = await getSettings();
       if (!settings.categories.some(row => row.id === message.category) || typeof message.comment !== "string" || message.comment.length > 10000) throw new Error("分类或批注内容无效。");
@@ -193,6 +214,19 @@ async function handle(message, sender) {
     page.updatedAt = new Date().toISOString();
     page.sync = { status: "pending", noteKey: page.sync?.noteKey };
     await S.write(page);
+    await updateBadge(sender.tab?.id, page, await getSettings());
+    return undoToken ? { page, undoToken } : page;
+  });
+  if (type === "ANN_UNDO") return mutate(async () => {
+    const undo = (await chrome.storage.session.get("annotationUndo")).annotationUndo;
+    if (!undo || undo.token !== message.token || undo.expiresAt < Date.now()) throw Error("撤销时间已过，或已进行下一次删除。");
+    const page = await getPage(undo.pageId);
+    if (!(await getSettings()).categories.some(row => row.id === undo.annotation.category)) throw Error("原分类已删除，无法撤销。");
+    if (!page.annotations.some(row => row.id === undo.annotation.id)) page.annotations.splice(Math.min(undo.index, page.annotations.length), 0, undo.annotation);
+    page.updatedAt = new Date().toISOString();
+    page.sync = { status: "pending", noteKey: page.sync?.noteKey };
+    await S.write(page);
+    await chrome.storage.session.remove("annotationUndo");
     await updateBadge(sender.tab?.id, page, await getSettings());
     return page;
   });
@@ -259,7 +293,11 @@ async function handle(message, sender) {
     const offset = Number.isInteger(message.offset) && message.offset >= 0 ? message.offset : 0;
     return { items: rows.slice(offset, offset + 50), total: rows.length, next: offset + 50 < rows.length ? offset + 50 : null };
   }
-  if (type === "BACKUP_META") return S.manifest(message.pdfLinks);
+  if (type === "BACKUP_META") {
+    const header = await S.manifest(message.pdfLinks);
+    if (message.pdfLinks) header.readingData = await YanjiReadingStore.exportData();
+    return header;
+  }
   if (type === "BACKUP_CHECK") {
     if ((await chrome.storage.local.get("dataRevision")).dataRevision !== message.revision) throw new Error("备份期间标注发生变化，请重新导出。");
     return true;
@@ -271,11 +309,12 @@ async function handle(message, sender) {
     for (const row of settings.categories) if (!merged.has(row.id)) merged.set(row.id, row);
     if (merged.size > 30) throw new Error("合并后超过 30 个分类，请先整理分类再导入。");
     const token = crypto.randomUUID();
-    imports.set(token, { settings: { ...existingSettings, categories: [...merged.values()] }, ids: new Set(merged.keys()), parts: [], sequence: 0, count: 0,pdfLinks:S.validatePDFLinks(message.pdfLinks) });
+    imports.set(token, { settings: { ...existingSettings, categories: [...merged.values()] }, ids: new Set(merged.keys()), parts: [], sequence: 0, count: 0,pdfLinks:S.validatePDFLinks(message.pdfLinks), reading: await YanjiReadingStore.validateData(message.readingData) });
     return token;
   });
   if (type === "IMPORT_END") return mutate(async()=>{
     const session=imports.get(message.token);
+    if (session) await YanjiReadingStore.merge(session.reading);
     if(session&&Object.keys(session.pdfLinks).length)await chrome.storage.local.set({...session.pdfLinks,dataRevision:crypto.randomUUID()});
     imports.delete(message.token);return true;
   });

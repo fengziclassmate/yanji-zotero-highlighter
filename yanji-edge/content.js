@@ -9,9 +9,9 @@
   const shadow = host.attachShadow({ mode: "open" });
   shadow.innerHTML = `<style>
     :host{${Object.entries(Y.uiColors).map(([name,value])=>name+":"+value).join(";")};all:initial;font:14px/1.5 "Segoe UI","Microsoft YaHei",sans-serif;color:var(--text)}
-*{box-sizing:border-box}button,select,textarea{font:inherit;color:inherit}button{cursor:pointer;background:color-mix(in srgb,var(--bg) 80%,transparent);border:.5px solid var(--control-line);border-radius:4px;padding:4px 8px;min-height:var(--button-size,28px);font-size:12px}button:hover{background:var(--bg)}button:focus-visible,select:focus-visible,textarea:focus-visible{outline:.5px solid var(--text);outline-offset:3px}button:disabled{cursor:wait;color:var(--muted)}button.primary{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}button.danger{color:var(--error)}button.swatch{display:inline-flex;gap:6px;align-items:center}.dot{width:10px;height:10px;border-radius:2px;flex:none}.menu,.editor{position:fixed;background:rgb(var(--panel-rgb) / var(--popup-opacity,.88));border:.5px solid var(--control-line);border-radius:8px;padding:8px;box-shadow:0 3px 12px var(--shadow);z-index:2147483647;max-width:calc(100vw - 20px);max-height:calc(100vh - 20px);resize:both;overflow:auto}.menu{min-width:220px;min-height:78px;padding-bottom:10px}.menu[hidden],.editor[hidden],.toast[hidden]{display:none}.tools{display:flex;gap:4px;align-items:center;margin-bottom:8px}.tools .close{margin-left:auto}.icon{display:inline-flex;align-items:center;justify-content:center;width:var(--button-size,28px);padding:4px;background:transparent;border-color:transparent;flex:none}.menu-actions{float:right;display:flex;gap:2px;margin-left:6px}.categories{display:block;line-height:0}.categories button{line-height:1.5;vertical-align:top;margin:0 4px 4px 0}.editor{min-width:260px;min-height:300px;right:20px;top:80px}.editor label{display:block;font-size:12px;margin:12px 0 6px;color:var(--muted)}.editor select,.editor textarea{width:100%;border:.5px solid var(--control-line);border-radius:4px;padding:8px;background:color-mix(in srgb,var(--bg) 90%,transparent)}.editor textarea{min-height:96px;resize:vertical}.excerpt{max-height:96px;overflow:auto;font-size:14px;color:var(--muted);background:var(--ground);padding:8px;margin:8px 0;white-space:pre-wrap}.actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px}.hint{font-size:12px;color:var(--muted)}.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);max-width:min(580px,calc(100vw - 30px));padding:10px 16px;background:var(--accent);color:var(--on-accent);border-radius:4px;z-index:2147483647}.nav{position:fixed;right:3px;top:0;height:100vh;width:24px;pointer-events:none;z-index:2147483645}.nav button{position:absolute;width:22px;height:22px;min-height:22px;padding:5px;border:0;background:transparent;pointer-events:auto}.nav i{display:block;width:11px;height:11px;border-radius:50%;border:.5px solid var(--control-line)}strong{font-weight:600}
+*{box-sizing:border-box}button,select,textarea{font:inherit;color:inherit}button{cursor:pointer;background:color-mix(in srgb,var(--bg) 80%,transparent);border:.5px solid var(--control-line);border-radius:4px;padding:4px 8px;min-height:var(--button-size,28px);font-size:12px}button:hover{background:var(--bg)}button:focus-visible,select:focus-visible,textarea:focus-visible{outline:.5px solid var(--text);outline-offset:3px}button:disabled{cursor:wait;color:var(--muted)}button.primary{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}button.danger{color:var(--error)}button.swatch{display:inline-flex;gap:6px;align-items:center}.dot{width:10px;height:10px;border-radius:2px;flex:none}.menu,.editor{position:fixed;background:rgb(var(--panel-rgb) / var(--popup-opacity,.88));border:.5px solid var(--control-line);border-radius:8px;padding:8px;box-shadow:0 3px 12px var(--shadow);z-index:2147483647;max-width:calc(100vw - 20px);max-height:calc(100vh - 20px);resize:both;overflow:auto}.menu{min-width:220px;min-height:78px;padding-bottom:10px}.menu[hidden],.editor[hidden],.toast[hidden]{display:none}.tools{display:flex;gap:4px;align-items:center;margin-bottom:8px}.tools strong{margin-right:auto}.tools .close{margin-left:0}.icon{display:inline-flex;align-items:center;justify-content:center;width:var(--button-size,28px);padding:4px;background:transparent;border-color:transparent;flex:none}.menu-actions{float:right;display:flex;gap:2px;margin-left:6px}.categories{display:block;line-height:0}.categories button{line-height:1.5;vertical-align:top;margin:0 4px 4px 0}.editor{min-width:260px;min-height:300px;right:20px;top:80px}.editor label{display:block;font-size:12px;margin:12px 0 6px;color:var(--muted)}.editor select,.editor textarea{width:100%;border:.5px solid var(--control-line);border-radius:4px;padding:8px;background:color-mix(in srgb,var(--bg) 90%,transparent)}.editor textarea{min-height:96px;resize:vertical}.excerpt{max-height:96px;overflow:auto;font-size:14px;color:var(--muted);background:var(--ground);padding:8px;margin:8px 0;white-space:pre-wrap}.actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px}.hint{font-size:12px;color:var(--muted)}.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);max-width:min(580px,calc(100vw - 30px));padding:10px 16px;background:var(--accent);color:var(--on-accent);border-radius:4px;z-index:2147483647}.toast button{background:transparent;border:0;color:inherit;padding:0 0 0 12px;text-decoration:underline}.nav{position:fixed;right:3px;top:0;height:100vh;width:24px;pointer-events:none;z-index:2147483645}.nav button{position:absolute;width:22px;height:22px;min-height:22px;padding:5px;border:0;background:transparent;pointer-events:auto}.nav i{display:block;width:11px;height:11px;border-radius:50%;border:.5px solid var(--control-line)}strong{font-weight:600}
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
-  </style><div class="menu" hidden role="toolbar" aria-label="选择标注分类"></div><section class="editor" hidden role="dialog" aria-label="编辑标注"><div class="tools"><strong>批注</strong><button class="icon close" data-do="cancel" title="关闭" aria-label="关闭">${Y.icon("close")}</button></div><div class="excerpt"></div><label for="yj-category">分类</label><select id="yj-category"></select><label for="yj-comment">我的批注</label><textarea id="yj-comment" placeholder="记录想法…"></textarea><div class="actions"><button class="primary" data-do="save">保存</button><span class="hint">Ctrl + Enter</span><button class="icon danger" data-do="delete" title="删除标注" aria-label="删除标注">${Y.icon("trash")}</button></div></section><div class="nav" aria-label="标注段落导航"></div><div class="toast" hidden role="status" aria-live="polite"></div>`;
+  </style><div class="menu" hidden role="toolbar" aria-label="选择标注分类"></div><section class="editor" hidden role="dialog" aria-label="编辑标注"><div class="tools"><strong>批注</strong><button class="icon" data-do="copy" title="复制摘录；Shift+点击包含英文句对和批注" aria-label="复制摘录">${Y.icon("copy")}</button><button class="icon close" data-do="cancel" title="关闭" aria-label="关闭">${Y.icon("close")}</button></div><div class="excerpt"></div><label for="yj-category">分类</label><select id="yj-category"></select><label for="yj-comment">我的批注</label><textarea id="yj-comment" placeholder="记录想法…"></textarea><div class="actions"><button class="primary" data-do="save">保存</button><span class="hint">Ctrl + Enter</span><button class="icon danger" data-do="delete" title="删除标注" aria-label="删除标注">${Y.icon("trash")}</button></div></section><div class="nav" aria-label="标注段落导航"></div><div class="toast" hidden role="status" aria-live="polite"></div>`;
   document.documentElement.append(host);
   const menu = shadow.querySelector(".menu"), editor = shadow.querySelector(".editor"), toast = shadow.querySelector(".toast");
   const style = document.createElement("style");
@@ -23,11 +23,20 @@
     return result.data;
   };
   let toastTimer;
-  function notice(message) {
+  function notice(message, undoToken) {
     toast.textContent = message;
+    if (undoToken) {
+      const button = document.createElement("button"); button.textContent = "撤销";
+      button.onclick = async () => {
+        button.disabled = true;
+        try { const restored = await send({ type: "ANN_UNDO", token: undoToken }); if (restored.id === Y.pageID(metadata())) { page = restored; restore(); } notice("已撤销删除"); }
+        catch (error) { report(error); }
+      };
+      toast.append(button);
+    }
     toast.hidden = false;
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => { toast.hidden = true; }, 5500);
+    toastTimer = setTimeout(() => { toast.hidden = true; }, undoToken ? 8000 : 5500);
   }
   const report = error => { console.error("研迹", error); notice(error.message); };
   function metadata() {
@@ -199,20 +208,23 @@
       if (button.dataset.category) await saveSelection(button.dataset.category);
       else if (button.dataset.do === "more") { expanded = true; showMenu(); }
       else if (button.dataset.do === "comment") await saveSelection(settings.defaultCategory, true);
-      else if (button.dataset.do === "copy") { await navigator.clipboard.writeText(`[${metadata().title}](${metadata().url}) ${pending.quote}`); notice("已复制标题、链接和文本"); }
+      else if (button.dataset.do === "copy") { await navigator.clipboard.writeText(Y.copyAnnotation({quote:pending.quote,segments:pending.segments,comment:""},event.shiftKey)); notice("已复制摘录"); }
       else menu.hidden = true;
     } catch (error) { report(error); }
   });
   editor.addEventListener("click", async event => {
     const action = event.target.closest("button")?.dataset.do;
     try {
-      if (action === "save") await saveEdit();
+      if (action === "copy") { const annotation=page.annotations.find(row=>row.id===editing); await navigator.clipboard.writeText(Y.copyAnnotation(annotation,event.shiftKey)); notice(event.shiftKey?"已复制双语摘录与批注":"已复制摘录"); }
+      else if (action === "save") await saveEdit();
       else if (action === "cancel") { editor.hidden = true; editing = null; }
-      else if (action === "delete" && confirm("删除这条标注？更新 Zotero 笔记后，摘录区会相应移除。")) {
-        page = await send({ type: "ANN_DELETE", pageId: page.id, id: editing });
+      else if (action === "delete") {
+        const result = await send({ type: "ANN_DELETE", pageId: page.id, id: editing });
+        page = result.page;
         editor.hidden = true;
         editing = null;
         restore();
+        notice("标注已删除", result.undoToken);
       }
     } catch (error) { report(error); }
   });
@@ -239,7 +251,7 @@
     if (event.composedPath().includes(host) || !getSelection().isCollapsed) return;
     const caret = document.caretRangeFromPoint(event.clientX, event.clientY);
     const match = caret && rendered.find(row => row.range.isPointInRange(caret.startContainer, caret.startOffset));
-    if (match) edit(match.id);
+    if (match) { edit(match.id); send({ type: "ANN_FOCUS", pageId:page.id, id:match.id }).catch(report); }
     else menu.hidden = true;
   });
   document.addEventListener("keydown", event => {
@@ -271,6 +283,7 @@
       const next = changes["page:" + page.id].newValue;
       const changed = JSON.stringify(page.annotations) !== JSON.stringify(next.annotations);
       page = next;
+      if (editing && !page.annotations.some(row => row.id === editing)) { editor.hidden = true; editing = null; }
       if (changed) restore();
     }
   });
@@ -288,5 +301,6 @@
   addEventListener("visibilitychange", () => { if (!document.hidden) restore(); });
   addEventListener("resize", () => { clearTimeout(restoreTimer); restoreTimer = setTimeout(restore, 200); });
   const initialLoad = load();
+  globalThis.YanjiPage = { metadata, ready: initialLoad, notice, hasAnnotations: () => !!page?.annotations.length };
   initialLoad.catch(report);
 })();
