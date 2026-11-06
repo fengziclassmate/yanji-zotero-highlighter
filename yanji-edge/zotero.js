@@ -37,13 +37,13 @@
     connection.remember = data.remember;
     if (data.remember) await chrome.storage.local.set({ zoteroAuth: { serverID: connection.serverID, key: data.key } });
   }
-  async function write(path, method, body, headers = {}, interactive = true) {
+  async function write(path, method, body, headers = {}, interactive = true, timeout) {
     const requireAuthorization = async () => {
       if (!interactive) throw Object.assign(new Error("已关联，点击更新笔记以授权写入。"), { code: "AUTH_REQUIRED" });
       await authorize();
     };
     if (!connection.key) await requireAuthorization();
-    const send = () => request(path, { method, headers: { "Content-Type": "application/json", "Zotero-Server-ID": connection.serverID, "Zotero-API-Key": connection.key, ...headers }, body: JSON.stringify(body) });
+    const send = () => request(path, { method, headers: { "Content-Type": "application/json", "Zotero-Server-ID": connection.serverID, "Zotero-API-Key": connection.key, ...headers }, body: JSON.stringify(body), timeout });
     let result = await send();
     if (result.response.status === 401) {
       await chrome.storage.local.remove("zoteroAuth");
@@ -53,7 +53,8 @@
     }
     if (!connection.remember) connection.key = null;
     if (!result.response.ok) {
-      const error = new Error(result.response.status === 412 ? "写入前笔记已被修改，已停止覆盖。请刷新后重试。" : `写入 Zotero 失败（${result.response.status}）：${JSON.stringify(result.data).slice(0, 220)}`);
+      if (result.response.status === 404 && path.includes("yanji/pdf/files")) throw new Error("请将 Zotero 中的研迹配套插件升级至 0.2.0，再保存 PDF。");
+      const error = new Error(result.response.status === 412 ? "写入前笔记已被修改，已停止覆盖。请刷新后重试。" : `写入 Zotero 失败（${result.response.status}）：${(result.data?.error || JSON.stringify(result.data)).slice(0, 220)}`);
       error.code = result.response.status === 412 ? "CONFLICT" : "API_ERROR";
       throw error;
     }

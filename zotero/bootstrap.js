@@ -4,8 +4,10 @@ async function startup({ rootURI }) {
   scope = { Zotero };
   Services.scriptloader.loadSubScript(rootURI + "pdf-core.js", scope);
   Services.scriptloader.loadSubScript(rootURI + "bridge.js", scope);
+  Services.scriptloader.loadSubScript(rootURI + "pdf-files.js", scope);
   scope.YanjiPDFBridge.start();
+  scope.YanjiPDFFiles.start();
 }
-function shutdown() { scope?.YanjiPDFBridge.stop(); scope = null; }
+function shutdown() { scope?.YanjiPDFBridge.stop(); scope?.YanjiPDFFiles.stop(); scope = null; }
 function install() {}
 function uninstall() {}

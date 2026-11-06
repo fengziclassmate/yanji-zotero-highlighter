@@ -1,9 +1,10 @@
 {
   "manifest_version": 3,
   "name": "研迹 · Zotero 网页标注",
-  "version": "0.8.4",
+  "version": "0.9.0",
   "description": "中文网页标注、原文段落定位，将九类摘录整理到 Zotero 10 的一份文献笔记。",
   "permissions": ["storage", "tabs", "sidePanel", "clipboardWrite", "unlimitedStorage"],
+  "optional_permissions": ["downloads"],
   "host_permissions": ["http://127.0.0.1:23119/*"],
   "optional_host_permissions": ["https://api.niutrans.com/*", "https://translate.googleapis.com/*", "https://translation.googleapis.com/*", "https://edge.microsoft.com/*", "https://api.cognitive.microsofttranslator.com/*"],
   "background": { "service_worker": "background.js" },
@@ -13,7 +14,7 @@
   "options_ui": { "page": "options.html", "open_in_tab": false },
   "content_scripts": [{
     "matches": ["http://*/*", "https://*/*", "file:///*"],
-    "js": ["shared.js", "anchor.js", "content.js", "references.js", "reading.js"],
+    "js": ["shared.js", "pdf-document.js", "anchor.js", "content.js", "references.js", "reading.js"],
     "run_at": "document_idle"
   }]
 }

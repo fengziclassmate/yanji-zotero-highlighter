@@ -1,4 +1,4 @@
-importScripts("shared.js", "zotero.js", "reading-store.js", "store.js", "pdf-sync.js", "reference-service.js");
+importScripts("shared.js", "zotero.js", "reading-store.js", "store.js", "pdf-sync.js", "pdf-download.js", "reference-service.js");
 const Y = Yanji;
 const Z = YanjiZotero;
 const S = YanjiStore;
@@ -171,8 +171,12 @@ async function handle(message, sender) {
     if (type === "REF_PROGRESS") return true;
     throw Error("未知翻译操作。");
   }
-  if (["CONNECT", "SEARCH", "BIND", "SYNC", "CHECK_DOI", "ANN_ALIGN", "PDF_SCAN", "PDF_SAVE", "PDF_PREVIEW", "SETTINGS_SAVE", "CONFIG_EXPORT", "CONFIG_IMPORT", "BACKUP_META", "BACKUP_CHECK", "IMPORT_BEGIN", "IMPORT_CHUNK", "IMPORT_END", "PAGES"].includes(type) && !internal) throw new Error("此操作仅限扩展内部界面。");
+  if (["CONNECT", "SEARCH", "BIND", "SYNC", "CHECK_DOI", "ANN_ALIGN", "PDF_SCAN", "PDF_SAVE", "PDF_PREVIEW", "PDF_DOWNLOAD_INFO", "PDF_DOWNLOAD_ROOT", "PDF_DOWNLOAD_START", "PDF_DOWNLOAD_LATEST", "SETTINGS_SAVE", "CONFIG_EXPORT", "CONFIG_IMPORT", "BACKUP_META", "BACKUP_CHECK", "IMPORT_BEGIN", "IMPORT_CHUNK", "IMPORT_END", "PAGES"].includes(type) && !internal) throw new Error("此操作仅限扩展内部界面。");
   await S.ready();
+  if (type === "PDF_DOWNLOAD_INFO") return YanjiPDFDownload.info(message);
+  if (type === "PDF_DOWNLOAD_ROOT") return YanjiPDFDownload.root();
+  if (type === "PDF_DOWNLOAD_START") return YanjiPDFDownload.start(message);
+  if (type === "PDF_DOWNLOAD_LATEST") return YanjiPDFDownload.latest(message.pageId);
   if (type === "PDF_SCAN") return YanjiPDFSync.scan(message.pageId,message.attachmentKey);
   if (type === "PDF_SAVE") return YanjiPDFSync.save(message.token,message.selections);
   if (type === "PDF_PREVIEW") return YanjiPDFSync.preview(message.token,message.id,message.index);

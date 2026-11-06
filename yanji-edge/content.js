@@ -292,6 +292,7 @@
     }
   });
   chrome.runtime.onMessage.addListener((message, sender, respond) => {
+    if (message.type === "PDF_DOCUMENT") { respond({ok:true, data:YanjiPDFDocument.describe()}); return; }
     if (message.type === "CONTEXT") {
       const reply = () => respond({ ok: true, data: { meta: metadata(), page, settings, diagnostics: { lastRestoreMS, restoreCount, renderedRanges: rendered.length, annotationBytes: new TextEncoder().encode(JSON.stringify(page.annotations)).byteLength, pageJSHeapBytes: performance.memory?.usedJSHeapSize || null } } });
       if (page) reply();

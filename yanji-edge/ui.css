@@ -17,3 +17,19 @@ dialog{border:.5px solid var(--control-line);border-radius:10px;width:680px;max-
 .annotation-toggle{border:0;background:transparent;padding:0;min-height:26px;font-weight:600;gap:5px}.annotation-toggle:hover{background:transparent}.annotation-toggle svg{width:14px;height:14px}.annotation-toggle[aria-expanded=false] svg{transform:rotate(-90deg)}.annotation{padding:10px 0}.annotation-header{gap:5px}.quote{margin:6px 0;line-height:1.65}.quote-text{-webkit-line-clamp:3}.quote-actions{margin-top:0}.quote-actions .icon{width:24px;min-height:24px;padding:4px}.comment{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden;margin:5px 0;padding:4px 7px;line-height:1.6}.quote-expanded .comment{display:block;-webkit-line-clamp:unset}.annotation-actions{display:flex;align-items:flex-start;gap:6px;flex-wrap:wrap;margin-top:5px}.annotation-actions>.original-row{flex:1;min-width:0;margin:0;gap:3px}.annotation-actions>.edit-row{flex:none;margin:0;gap:3px}.annotation-actions summary{min-height:26px;padding-top:3px}.annotation-actions .locate-button{min-height:26px;padding:3px;font-size:12px}.annotation-actions .icon{width:24px;min-height:26px;padding:4px}.annotation-actions:has(details[open])>.original-row,.annotation-actions:has(details[open])>.edit-row{flex-basis:100%}.annotation-section>.summary{padding-top:5px;padding-bottom:5px;gap:5px}.category-chip{min-height:25px}
 
 .comment{overflow-wrap:anywhere}
+
+/* PDF download keeps naming and placement together in one compact dialog. */
+#download-dialog{width:min(460px,calc(100vw - 24px));padding:14px;max-height:calc(100dvh - 24px)}
+#download-form{margin:0} .download-fields{display:grid;gap:10px;margin:12px 0}
+.download-fields .field{min-width:0;margin:0;gap:4px}.download-fields label{font-size:12px}
+.download-fields input,.download-fields select,.download-fields textarea{width:100%;min-width:0;font-size:14px}
+.download-fields input[type=checkbox]{width:auto}.download-fields .check{font-size:12px}
+.download-location{display:flex;align-items:center;gap:6px;min-width:0}
+#download-root-path{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;color:var(--muted)}
+.download-state{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px;align-items:end}.download-state .check{min-height:32px}
+.download-date-row{display:grid;grid-template-columns:1.1fr 1fr 1fr;gap:8px}
+#download-filename{resize:vertical;min-height:62px;line-height:1.5}
+#download-binding{font-size:12px;margin:0;overflow-wrap:anywhere;color:var(--muted)}
+#download-saved-path{font-size:12px;overflow-wrap:anywhere;margin:0 0 6px}
+#download-dialog .dialog-actions{align-items:center;gap:10px;position:sticky;bottom:-14px;background:var(--bg);margin-bottom:0;padding-bottom:12px}
+#download-save{flex:none}#download-status{margin:0;flex:1;font-size:12px}
