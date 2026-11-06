@@ -83,7 +83,7 @@ var YanjiPDFImport = (() => {
       }
     }
     let created;
-    if(!parent&&meta.hasMetadata&&meta.title){
+    if(!parent&&meta.hasMetadata&&meta.title&&meta.authors.length){
       parent=new Zotero.Item(meta.itemType);parent.libraryID=Zotero.Libraries.userLibraryID;
       parent.setField("title",meta.title);
       for(const field of ["DOI","url","date"]) {const value=field==="DOI"?meta.doi:field==="date"?meta.date.replace(/^(\d{4})(\d{2})(\d{2})$/,"$1-$2-$3").replace(/^(\d{4})(\d{2})$/,"$1-$2"):meta.url;if(value)parent.setField(field,value);}

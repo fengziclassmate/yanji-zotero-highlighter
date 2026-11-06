@@ -128,11 +128,13 @@ function paintAnnotations() {
 }
 async function load() {
   const sequence = ++loadSequence;
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  let [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  let contextError;
+  if(tab?.url&&/^https?:/.test(tab.url))try{tab=await YanjiPDFDocument.articleTab(tab);}catch(error){contextError=error;tab=null;}
   tabId = tab?.id;
   if (!tab?.url || !/^(https?:|file:)/.test(tab.url)) {
     $("#title").textContent = "请打开文章正文";
-    status("#page-status", "浏览器设置页、扩展商店和内置 PDF 阅读器不支持网页标注。可从下方打开已保存的文章。");
+    status("#page-status", contextError?.message || "浏览器设置页、扩展商店和内置 PDF 阅读器不支持网页标注。可从下方打开已保存的文章。",contextError?"error":"");
     page = null;
     document.dispatchEvent(new Event("yanji-context-changed"));
     $("#source").textContent="";$("#copy-doi").hidden=true;
@@ -143,7 +145,7 @@ async function load() {
     return;
   }
   let result;
-  try { result = await chrome.tabs.sendMessage(tab.id, { type: "CONTEXT" }); }
+  try { result = await YanjiPDFDocument.readTab(tab.id,"CONTEXT"); }
   catch (error) { throw new Error("文章页尚未加载研迹。安装或更新扩展后，请刷新文章页；本地 HTML 还需在扩展详情中允许访问文件网址。", { cause: error }); }
   if (sequence !== loadSequence) return;
   if (!result?.ok || !result.data.page) throw new Error("读取文章失败，请刷新文章页。");

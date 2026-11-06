@@ -116,7 +116,7 @@ var YanjiPDFFiles = (() => {
       const learned=(matching.length?matching:codes.size===1?[...codes.values()]:[]).sort((a,b)=>b.count-a.count)[0];
       short=aliases.scores.has(key)&&/^(?:[A-Z0-9]{1,12}|npj[A-Z0-9]+)$/.test(selected.label) ? selected.label : learned?.value||abbreviation||aliases.short||selected.label;
     }
-    return {root,folders,journal,folder:selected?selected.relative:null,abbreviation:short,autoImport:typeof YanjiPDFImport!=="undefined"};
+    return {root,folders,journal,folder:selected?selected.relative:null,abbreviation:short,autoImport:typeof YanjiPDFImport!=="undefined",localImport:true,pickStatus:true};
   }
   async function pickRoot() {
     const {FilePicker} = ChromeUtils.importESModule("chrome://zotero/content/modules/filePicker.mjs");
@@ -152,16 +152,38 @@ var YanjiPDFFiles = (() => {
     const token = Zotero.Utilities.randomString(32);
     const temporaryName=data.filename.slice(0,-4).slice(0,116).replace(/[\uD800-\uDBFF]$/,"").replace(/[. ]+$/,"")+".pdf";
     plans.set(token, {target, temporaryName, autoImport:data.autoImport===true, metadata, parentItemKey:data.parentItemKey || "", journal:data.journal, abbreviation:data.abbreviation, folder:data.folder, at:Date.now(), running:false});
-    return {token, temporaryName:token+"/"+temporaryName,autoImport:data.autoImport===true};
+    return {token, temporaryName:token+"/"+temporaryName,autoImport:data.autoImport===true,localImport:true,pickStatus:true};
   }
-  async function finish(data) {
+  function pickStatus(data) {
+    const plan = plans.get(data.token);
+    if (!plan || Date.now() - plan.at > 3600000) throw Error("保存任务已过期，请重新选择 PDF。");
+    if(plan.error)throw Error(plan.error);
+    if (plan.result) return plan.result;
+    return plan.cancelled?{cancelled:true}:{pending:true};
+  }
+  function pick(data) {
+    const state=pickStatus(data),plan=plans.get(data.token);
+    if(!state.pending||plan.picking)return state;
+    if([...plans.values()].some(row=>row.picking))throw Error("请先完成已打开的 PDF 选择窗口。");
+    plan.picking=true;
+    (async()=>{
+      const {FilePicker} = ChromeUtils.importESModule("chrome://zotero/content/modules/filePicker.mjs");
+      const picker = new FilePicker();
+      picker.init(Zotero.getMainWindow(), "选择从 PDF 阅读器保存的文件", picker.modeOpen);
+      picker.appendFilter("PDF", "*.pdf");
+      if (await picker.show() !== picker.returnOK) {plan.cancelled=true;return;}
+      await finish({token:data.token,path:picker.file},true);
+    })().catch(error=>{plan.error=error.message;Zotero.logError(error)}).finally(()=>{plan.picking=false});
+    return state;
+  }
+  async function finish(data, localFile = false) {
     const plan = plans.get(data.token);
     if (!plan || Date.now() - plan.at > 3600000) throw Error("下载任务已过期，请重新保存 PDF。");
     if (plan.result) return plan.result;
     if (plan.running) throw Error("这份 PDF 正在入库，请稍候。");
     if (typeof data.path !== "string" || !PathUtils.isAbsolute(data.path)) throw Error("下载临时文件不属于本次任务。");
     const staging=PathUtils.parent(data.path);
-    if(PathUtils.filename(data.path)!==plan.temporaryName||PathUtils.filename(staging)!==data.token||PathUtils.filename(PathUtils.parent(staging))!=="研迹临时") throw Error("下载临时文件不属于本次任务。");
+    if(!localFile&&(PathUtils.filename(data.path)!==plan.temporaryName||PathUtils.filename(staging)!==data.token||PathUtils.filename(PathUtils.parent(staging))!=="研迹临时")) throw Error("下载临时文件不属于本次任务。");
     plan.running = true;
     try {
       await verifyPDF(data.path);
@@ -186,8 +208,7 @@ var YanjiPDFFiles = (() => {
       }
       if (plan.journal) { const saved = mappings(); for(const name of Object.keys(saved))if(journalKey(name)===journalKey(plan.journal))delete saved[name]; saved[plan.journal] = {folder:plan.folder, abbreviation:plan.abbreviation}; set("journals", JSON.stringify(saved)); }
       plan.result = {...imported,path:plan.target, attachmentKey, warning};
-      await IOUtils.remove(data.path);
-      await IOUtils.remove(staging);
+      if(!localFile){await IOUtils.remove(data.path);await IOUtils.remove(staging);}
       return plan.result;
     } finally { plan.running = false; }
   }
@@ -201,15 +222,15 @@ var YanjiPDFFiles = (() => {
       if (request.headers.get("Zotero-Server-ID") !== Zotero.Server.LocalAPI.getServerID()) return [409,"application/json",JSON.stringify({error:"Zotero 文献库已改变，请重新连接。"})];
       const rejected = await new Zotero.Server.LocalAPI.Root()._authenticateWriteRequest(request);
       if (rejected) return rejected;
-      if (!data || !["info", "root", "prepare", "finish"].includes(data.action)) return [400,"application/json",JSON.stringify({error:"PDF 保存操作无效。"})];
+      if (!data || !["info", "root", "prepare", "finish", "pick", "pick-status"].includes(data.action)) return [400,"application/json",JSON.stringify({error:"PDF 保存操作无效。"})];
       if (busy) return [409,"application/json",JSON.stringify({error:"PDF 正在保存，请等待完成。"})];
       busy = true;
       try {
-        const result = await ({info, root:pickRoot, prepare, finish}[data.action])(data);
+        const result = await ({info, root:pickRoot, prepare, finish, pick,"pick-status":pickStatus}[data.action])(data);
         return [200,"application/json",JSON.stringify(result)];
       } catch (error) { Zotero.logError(error); return [400,"application/json",JSON.stringify({error:error.message})]; }
       finally { busy = false; }
     }
   };
-  return {info, prepare, finish, start(){Zotero.Server.Endpoints[path] = Endpoint;}, stop(){delete Zotero.Server.Endpoints[path]; plans.clear();}};
+  return {info, prepare, finish, pick, pickStatus, start(){Zotero.Server.Endpoints[path] = Endpoint;}, stop(){delete Zotero.Server.Endpoints[path]; plans.clear();}};
 })();

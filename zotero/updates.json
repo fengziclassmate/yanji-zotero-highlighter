@@ -3,9 +3,9 @@
     "yanji-pdf@fengziclassmate": {
       "updates": [
         {
-          "version": "0.3.0",
-          "update_link": "https://github.com/fengziclassmate/yanji-zotero-highlighter/raw/refs/heads/main/dist/yanji-zotero-0.3.0.xpi",
-          "update_hash": "sha256:899c029c6ae59a9808a98f89bd5d4fcc8dcd66b433d547261abd57d471beb372",
+          "version": "0.3.2",
+          "update_link": "https://github.com/fengziclassmate/yanji-zotero-highlighter/raw/refs/heads/main/dist/yanji-zotero-0.3.2.xpi",
+          "update_hash": "sha256:9431fe78827cb8c915d734f734c77721ea6eb7bc2da002a399765d8c76c79067",
           "applications": {
             "zotero": {
               "strict_min_version": "10.0",

@@ -15,9 +15,10 @@
     state = await send({ type: "REF_STATE" });
     for (const [id, area] of choices) { node(id).checked = state[Yanji.translationScopes[area]]; node(id).title = state.name; }
     if (!choices.some(([, area]) => state[Yanji.translationScopes[area]])) { show({ enabled: false }); return; }
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    let [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!/^(https?:|file:)/.test(tab?.url || "")) return;
-    const result = await chrome.tabs.sendMessage(tab.id, { type: "REFERENCE_STATUS" });
+    if(/^https?:/.test(tab.url))tab=await YanjiPDFDocument.articleTab(tab);
+    const result = await YanjiPDFDocument.readTab(tab.id,"REFERENCE_STATUS");
     if (result?.ok) show(result.data);
   }
   const report = error => { console.error("研迹参考文献", error); node("reference-status").textContent = error.message; node("reference-status").className = "status error"; };

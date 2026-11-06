@@ -108,6 +108,10 @@
       else if (reviewID && articleURL.pathname === "/forum") add("/pdf?id=" + encodeURIComponent(reviewID), "文章 PDF");
     }
     const authors=[...root.querySelectorAll('meta[name="citation_author" i]')].map(node=>clean(node.content)).filter(Boolean).slice(0,100);
+    if(!authors.length&&sciencedirect)for(const node of root.querySelectorAll('.author-group .author')){
+      const name=[node.querySelector('.given-name'),node.querySelector('.surname')].filter(Boolean).map(part=>clean(part.textContent)).filter(Boolean).join(" ");
+      if(name&&authors.length<100)authors.push(name);
+    }
     if(!authors.length)authors.push(...meta(["citation_authors"]).split(";").map(clean).filter(Boolean).slice(0,100));
     const firstPage=meta(["citation_firstpage"])||ieeeMetadata.startPage||"",lastPage=meta(["citation_lastpage"])||ieeeMetadata.endPage||"";
     return {
@@ -125,16 +129,28 @@
       sources:[...sources.values()].slice(0, 12)
     };
   }
-  async function readTab(tabId) {
+  async function articleTab(tab) {
+    const url = new URL(tab.url);
+    const pii = /(^|\.)sciencedirectassets\.com$/i.test(url.hostname) && /\/1-s2\.0-([^/]+)\/main\.pdf$/i.exec(url.pathname)?.[1];
+    if(!pii)return tab;
+    const article=(await chrome.tabs.query({windowId:tab.windowId})).find(row=>{
+      if(!row.url||!URL.canParse(row.url))return false;
+      const u=new URL(row.url);
+      return /(^|\.)sciencedirect\.com$/i.test(u.hostname)&&u.pathname.replace(/\/$/,"")==="/science/article/pii/"+pii;
+    });
+    if(!article)throw Error("请先打开这份 PDF 对应的文章正文页。");
+    return article;
+  }
+  async function readTab(tabId, type = "PDF_DOCUMENT") {
     const tab = await chrome.tabs.get(tabId);
     if (tab.frozen || tab.discarded) await chrome.tabs.update(tabId, {active:true});
     let timer;
     try {
       return await Promise.race([
-        chrome.tabs.sendMessage(tabId, {type:"PDF_DOCUMENT"}),
+        chrome.tabs.sendMessage(tabId, {type}),
         new Promise((resolve,reject) => { timer = setTimeout(() => reject(Error("文章页未响应，请切回文章页并刷新后重试。")), 10000); })
       ]);
     } finally { clearTimeout(timer); }
   }
-  globalThis.YanjiPDFDocument = {describe, filename, date, readTab};
+  globalThis.YanjiPDFDocument = {describe, filename, date, readTab, articleTab};
 })();

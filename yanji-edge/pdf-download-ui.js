@@ -28,6 +28,7 @@
   function paintJob() {
     if (!job) return;
     $d("save").disabled = job.state === "downloading" || !libraryInfo?.root;
+    $d("local").disabled = job.state === "downloading" || !libraryInfo?.root;
     if (job.state === "downloading") show(job.phase === "saving" ? "正在保存到文献库…" : "正在下载；如 Edge 询问，请选择“保存”。");
     else if (job.state === "error") show(job.error, "error");
     else show(job.result.warning || job.result.message || (job.result.attachmentKey ? job.result.stored?"已保存并加入 Zotero":"已保存并关联到 Zotero" : "PDF 已保存"), job.result.warning ? "error" : "success");
@@ -41,6 +42,7 @@
     const sequence = ++opening;
     article = structuredClone(page); sourceTab = tabId; job = null;libraryInfo=null;
     $d("form").reset(); $d("save").disabled = true; $d("saved").hidden = true;
+    $d("local").hidden=true;
     $d("link").disabled=true;
     show("读取 PDF 信息…"); $d("dialog").showModal();
     try {
@@ -52,6 +54,7 @@
       const [info, latest, preference] = await Promise.all([send({type:"PDF_DOWNLOAD_INFO", pageId:article.id, meta:article, document:documentInfo}), send({type:"PDF_DOWNLOAD_LATEST", pageId:article.id}),chrome.storage.local.get("pdfAutoImport")]);
       if (sequence !== opening || !$d("dialog").open) return;
       libraryInfo = info; job = latest;autoImport=preference.pdfAutoImport===true;
+      $d("local").hidden=!info.localImport;$d("local").disabled=!info.root;
       documentInfo.journal=info.journal||documentInfo.journal;
       folders();
       $d("url").value = documentInfo.sources[0]?.url || "";
@@ -90,22 +93,25 @@
     if (leaf) $d("journal").value = leaf;
     preview();
   };
-  $d("form").onsubmit = async event => {
-    event.preventDefault();
+  async function save(localFile = false) {
     $d("save").disabled = true;
+    $d("local").disabled = true;
     try {
       if ($d("folder").value === "__choose__") throw Error("请选择保存文件夹。");
-      const granted = await chrome.permissions.request({permissions:["downloads"]});
-      if (!granted) throw Error("未允许下载文件。");
+      if(!localFile){const granted = await chrome.permissions.request({permissions:["downloads"]});if (!granted) throw Error("未允许下载文件。");}
       show("准备下载…");
       const importing=$d("link").checked&&(!libraryInfo.binding||autoImport);
       const metadata=importing?{title:documentInfo.title,doi:article.doi||"",url:documentInfo.canonical||article.url,journal:documentInfo.journal,date:documentInfo.published,authors:documentInfo.authors||[],itemType:documentInfo.itemType,hasMetadata:documentInfo.hasMetadata,volume:documentInfo.volume,issue:documentInfo.issue,pages:documentInfo.pages,issn:documentInfo.issn}:undefined;
-      const result = await send({type:"PDF_DOWNLOAD_START", pageId:article.id, meta:article, tabId:sourceTab, url:$d("url").value, folder:$d("folder").value, filename:$d("filename").value.trim(), journal:documentInfo.journal, abbreviation:$d("journal").value.trim(), link:$d("link").checked&&!!libraryInfo.binding,autoImport:importing,metadata});
+      const result = await send({type:"PDF_DOWNLOAD_START", pageId:article.id, meta:article, tabId:sourceTab, url:$d("url").value, folder:$d("folder").value, filename:$d("filename").value.trim(), journal:documentInfo.journal, abbreviation:$d("journal").value.trim(), link:$d("link").checked&&!!libraryInfo.binding,autoImport:importing,metadata,localFile});
+      if(result.cancelled){show("已取消选择 PDF");return;}
       if (result.existing) { job = {state:"complete", result}; }
       else job = await send({type:"PDF_DOWNLOAD_LATEST", pageId:article.id});
       paintJob();
-    } catch (error) { show(error.message, "error"); $d("save").disabled = false; }
-  };
+    } catch (error) { show(error.message, "error"); }
+    finally {if(job?.state!=="downloading"){$d("save").disabled=false;$d("local").disabled=false;}}
+  }
+  $d("form").onsubmit = event => {event.preventDefault();save();};
+  $d("local").onclick = () => save(true);
   $d("view").onclick = () => chrome.tabs.create({url:`zotero://open-pdf/library/items/${job.result.attachmentKey}`});
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area === "session" && $d("dialog").open) {
