@@ -39,7 +39,9 @@
       if (!match) continue;
       try {
         const parsed = JSON.parse(match[1]);
-        ieeeMetadata = Object.fromEntries(["pdfUrl","publicationTitle","displayPublicationDate","publicationYear"].filter(key => typeof parsed[key] === "string").map(key => [key,parsed[key]]));
+        ieeeMetadata = Object.fromEntries(["pdfUrl","publicationTitle","displayPublicationDate","publicationYear","volume","issue","startPage","endPage"].filter(key => typeof parsed[key] === "string").map(key => [key,parsed[key]]));
+        if(typeof parsed.isJournal==="boolean")ieeeMetadata.isJournal=parsed.isJournal;
+        if(Array.isArray(parsed.authors))ieeeMetadata.authors=parsed.authors.slice(0,100).filter(author=>author&&typeof author==="object"||typeof author==="string").map(author=>typeof author==="string"?author:typeof author.name==="string"?author.name:[author.firstName,author.lastName].filter(value=>typeof value==="string").join(" ")).filter(Boolean);
       }
       catch (error) { if (!(error instanceof SyntaxError)) throw error; console.warn("IEEE 页面元数据格式无效", error.message); }
       break;
@@ -105,12 +107,21 @@
       else if (mdpi) add(mdpi[1] + "/pdf", "文章 PDF");
       else if (reviewID && articleURL.pathname === "/forum") add("/pdf?id=" + encodeURIComponent(reviewID), "文章 PDF");
     }
+    const authors=[...root.querySelectorAll('meta[name="citation_author" i]')].map(node=>clean(node.content)).filter(Boolean).slice(0,100);
+    if(!authors.length)authors.push(...meta(["citation_authors"]).split(";").map(clean).filter(Boolean).slice(0,100));
+    const firstPage=meta(["citation_firstpage"])||ieeeMetadata.startPage||"",lastPage=meta(["citation_lastpage"])||ieeeMetadata.endPage||"";
     return {
       title:clean(meta(["citation_title", "dc.title", "og:title"]) || root.title),
       journal:clean(meta(["citation_journal_title", "citation_conference_title", "prism.publicationName", "dc.source"]) || ieeeMetadata.publicationTitle),
       abbreviation:clean(meta(["citation_journal_abbrev", "citation_journal_abbreviation", "prism.abbreviation"])),
       published:date(meta(["citation_publication_date", "citation_date", "dc.date", "prism.publicationDate"]) || ieeeMetadata.displayPublicationDate || ieeeMetadata.publicationYear),
       accepted:date(meta(["citation_acceptance_date", "citation_accepted_date", "dc.date.accepted", "dcterms.dateAccepted"])),
+      canonical:root.querySelector('link[rel="canonical"]')?.href||articleURL.href,
+      hasMetadata:!!(meta(["citation_title","dc.title"])||ieeeMetadata.publicationTitle),
+      itemType:meta(["citation_conference_title"])&&!meta(["citation_journal_title"])||ieeeMetadata.isJournal===false?"conferencePaper":/(^|\.)arxiv\.org$/i.test(articleURL.hostname)?"preprint":"journalArticle",
+      authors:authors.length?authors:ieeeMetadata.authors||[],
+      volume:clean(meta(["citation_volume"])||ieeeMetadata.volume),issue:clean(meta(["citation_issue"])||ieeeMetadata.issue),
+      pages:firstPage+(lastPage&&lastPage!==firstPage?"-"+lastPage:""),issn:clean(meta(["citation_issn"])),
       sources:[...sources.values()].slice(0, 12)
     };
   }

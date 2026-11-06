@@ -15,6 +15,7 @@ function paintCategories() {
 }
 async function load() {
   settings = await send({ type: "SETTINGS_GET" });
+  $("#pdf-auto-import").checked=(await chrome.storage.local.get("pdfAutoImport")).pdfAutoImport===true;
   loadedWidth = settings.toolbarWidth;
   sizesReset = false;
   paintCategories();
@@ -132,3 +133,6 @@ $("#import-config").onchange = async event => {
 };
 
 $(".version").textContent = "v" + chrome.runtime.getManifest().version;
+
+$("#pdf-auto-import").onchange=()=>chrome.storage.local.set({pdfAutoImport:$("#pdf-auto-import").checked}).catch(error=>status("#save-status",error.message,"error"));
+chrome.storage.onChanged.addListener((changes,area)=>{if(area==="local"&&changes.pdfAutoImport)$("#pdf-auto-import").checked=changes.pdfAutoImport.newValue===true;});

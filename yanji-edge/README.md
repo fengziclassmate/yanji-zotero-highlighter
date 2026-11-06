@@ -121,3 +121,11 @@ ScienceDirect PDF 先通过正常网页导航完成网站验证，再使用有�
 补充 IEEE Xplore、Taylor & Francis、MDPI、Nature、Copernicus/ESSD 与 OpenReview 正文 PDF 入口适配。IEEE 使用实际文件接口并读取页面内 JSON 的期刊和公开日期；Taylor 的 ePDF 转为 PDF；MDPI 排除期刊宣传页；Nature 优先实际 Download PDF 按钮，支持部分页面的 _reference.pdf 入口；Copernicus 与 OpenReview 只收集当前文章的主文 PDF。继续使用已有命名、期刊目录记忆和 Zotero 链接附件流程。
 
 IEEE 等使用站点根 base 地址的页面按实际文档 URL 识别文章；网页还在显示登录或验证提示时，保存窗口会要求先完成网页步骤，避免拿验证页作为论文标题。
+
+## v0.9.3
+
+按期刊全名、页面简称、目录名和已有 PDF 文件名预选归档目录与简称；优先沿用手动设置，不确定时仍需选择。中转文件名改为可读名称，成功转存后清理中转文件、任务目录及本扩展对应的下载记录，正式文献文件保留完整命名。
+
+## v0.10.0
+
+可在偏好设置的 Zotero 分区开启“下载 PDF 后自动入库”；未关联文献时，保存窗也可勾选“自动加入 Zotero 文库”。开关在当前浏览器记忆，只处理研迹保存的 PDF。新条目使用网页题录和 Zotero 存储副本，保留文献目录中的原文件；按 DOI、来源、标题和文件内容去重。已有文献继续复用原条目，必要的独立附件可在 Zotero 补充信息。配套插件需更新至 0.3.0。无需调用原批量同步脚本或重启 Zotero。

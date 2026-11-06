@@ -65,8 +65,18 @@ var YanjiPDFDownload = (() => {
   const bridge = data => Z.write("../yanji/pdf/files", "POST", data, {}, true, 120000);
   async function info(message) {
     const page = await context(message.meta, message.pageId);
-    const result = await bridge({action:"info", journal:message.document.journal, abbreviation:message.document.abbreviation});
+    const result = await bridge({action:"info", journal:message.document.journal, abbreviation:message.document.abbreviation, parentItemKey:page.binding?.itemKey});
     return {...result, binding:page.binding, ambiguous:page.match?.status === "ambiguous"};
+  }
+  async function associate(pageId,result,serverID) {
+    if(!result.parentItemKey)return;
+    const changed=await mutate(async()=>{
+      const page=await getPage(pageId);
+      if(!page||page.binding)return false;
+      page.binding={serverID,itemKey:result.parentItemKey,title:result.parentTitle,via:"pdf-import"};
+      page.match={status:"linked"};delete page.sync;await S.write(page);return true;
+    });
+    if(changed)await pageOpen(pageId);
   }
   async function settle(id) {
     if (flights.has(id)) return flights.get(id);
@@ -85,7 +95,10 @@ var YanjiPDFDownload = (() => {
         await Z.connect();
         if (job.serverID !== Z.connection.serverID) throw Error("Zotero 文献库已改变，PDF 暂留浏览器下载目录。");
         const result = await bridge({action:"finish", token:job.token, path:download.filename});
-        await chrome.storage.local.set({[key]:{...job, state:"complete", result, updatedAt:Date.now()}});
+        const completed={...job, state:"complete", result, updatedAt:Date.now()};
+        await chrome.storage.local.set({[key]:completed});
+        await clearRecord(completed,download);
+        await associate(job.pageId,result,job.serverID);
       } catch (error) {
         console.error("PDF 保存失败", error);
         await chrome.storage.local.set({[key]:{...job, state:"error", error:error.message, updatedAt:Date.now()}});
@@ -98,6 +111,19 @@ var YanjiPDFDownload = (() => {
     flights.set(id, task);
     return task;
   }
+  async function clearRecord(job, download) {
+    if(!download)[download]=await chrome.downloads.search({id:job.id});
+    if(!download||download.byExtensionId!==chrome.runtime.id||download.state!=="complete")return job;
+    const parts=download.filename.split(/[\\/]/);
+    if(!parts.includes(job.token)&&parts.at(-1)!==`yanji-${job.token}.pdf`)return job;
+    try { await chrome.downloads.erase({id:job.id}); }
+    catch(error){
+      console.error("PDF 已保存，浏览器中转记录清理失败",error);
+      job={...job,result:{...job.result,warning:[job.result.warning,"PDF 已保存，浏览器中转记录未能清理。"].filter(Boolean).join("\n")}};
+      await chrome.storage.local.set({[prefix+job.id]:job});
+    }
+    return job;
+  }
   async function startOne(message) {
     if (!await chrome.permissions.contains({permissions:["downloads"]})) throw Error("请允许研迹下载文件后重试。");
     const previous = await latest(message.pageId);
@@ -105,10 +131,17 @@ var YanjiPDFDownload = (() => {
     const url = new URL(message.url);
     if (!/^https?:$/.test(url.protocol) || url.username || url.password) throw Error("PDF 链接须为 HTTP 或 HTTPS 地址。");
     const page = await context(message.meta, message.pageId);
-    const parentItemKey = message.link ? page.binding?.itemKey : "";
-    if (message.link && !parentItemKey) throw Error("请先关联对应 Zotero 文献，或取消关联选项，仅保存 PDF。");
-    const plan = await bridge({action:"prepare", folder:message.folder, filename:message.filename, journal:message.journal, abbreviation:message.abbreviation, parentItemKey});
-    if (plan.existing) return plan;
+    const parentItemKey = message.link||message.autoImport ? page.binding?.itemKey : "";
+    if(message.autoImport&&!parentItemKey&&page.match?.status==="ambiguous")throw Error("匹配到多条文献，请先在侧栏选择对应条目，或关闭自动入库。");
+    if (message.link && !parentItemKey&&!message.autoImport) throw Error("请先关联对应 Zotero 文献，或取消关联选项，仅保存 PDF。");
+    const existingPath=previous?.state==="complete"&&previous.filename===message.filename?previous.result.path:undefined;
+    const plan = await bridge({action:"prepare", folder:message.folder, filename:message.filename, journal:message.journal, abbreviation:message.abbreviation, parentItemKey,autoImport:message.autoImport===true,metadata:message.metadata,existingPath});
+    if(message.autoImport&&!plan.autoImport)throw Error("请将 Zotero 研迹配套插件更新至 0.3.0，以使用自动入库。");
+    if (plan.existing){
+      if(previous?.state==="complete"&&existingPath===plan.path)await chrome.storage.local.set({[prefix+previous.id]:{...previous,result:{...plan,warning:plan.warning||""},updatedAt:Date.now()}});
+      await associate(page.id,plan,Z.connection.serverID);
+      return plan;
+    }
     const source = await pdfSource(url, message.tabId);
     listen();
     let id;
@@ -133,8 +166,10 @@ var YanjiPDFDownload = (() => {
   async function latest(pageId) {
     const id = (await chrome.storage.local.get("pdfDownloadPage:" + pageId))["pdfDownloadPage:" + pageId];
     if (id === undefined) return null;
-    if (await chrome.permissions.contains({permissions:["downloads"]})) await settle(id);
-    return (await chrome.storage.local.get(prefix + id))[prefix + id] || null;
+    const permitted=await chrome.permissions.contains({permissions:["downloads"]});
+    if(permitted)await settle(id);
+    const job=(await chrome.storage.local.get(prefix + id))[prefix + id] || null;
+    return permitted&&job?.state==="complete"?clearRecord(job):job;
   }
   let listening = false;
   function listen() {
