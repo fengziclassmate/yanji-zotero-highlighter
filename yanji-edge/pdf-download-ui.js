@@ -98,11 +98,12 @@
     $d("local").disabled = true;
     try {
       if ($d("folder").value === "__choose__") throw Error("请选择保存文件夹。");
-      if(!localFile){const granted = await chrome.permissions.request({permissions:["downloads"]});if (!granted) throw Error("未允许下载文件。");}
+      const reader=!localFile&&libraryInfo.readerSave===true&&/Edg\//.test(navigator.userAgent);
+      if(!localFile&&!reader){const granted = await chrome.permissions.request({permissions:["downloads"]});if (!granted) throw Error("未允许下载文件。");}
       show("准备下载…");
       const importing=$d("link").checked&&(!libraryInfo.binding||autoImport);
       const metadata=importing?{title:documentInfo.title,doi:article.doi||"",url:documentInfo.canonical||article.url,journal:documentInfo.journal,date:documentInfo.published,authors:documentInfo.authors||[],itemType:documentInfo.itemType,hasMetadata:documentInfo.hasMetadata,volume:documentInfo.volume,issue:documentInfo.issue,pages:documentInfo.pages,issn:documentInfo.issn}:undefined;
-      const result = await send({type:"PDF_DOWNLOAD_START", pageId:article.id, meta:article, tabId:sourceTab, url:$d("url").value, folder:$d("folder").value, filename:$d("filename").value.trim(), journal:documentInfo.journal, abbreviation:$d("journal").value.trim(), link:$d("link").checked&&!!libraryInfo.binding,autoImport:importing,metadata,localFile});
+      const result = await send({type:"PDF_DOWNLOAD_START", pageId:article.id, meta:article, tabId:sourceTab, url:$d("url").value, folder:$d("folder").value, filename:$d("filename").value.trim(), journal:documentInfo.journal, abbreviation:$d("journal").value.trim(), link:$d("link").checked&&!!libraryInfo.binding,autoImport:importing,metadata,localFile,reader});
       if(result.cancelled){show("已取消选择 PDF");return;}
       if (result.existing) { job = {state:"complete", result}; }
       else job = await send({type:"PDF_DOWNLOAD_LATEST", pageId:article.id});

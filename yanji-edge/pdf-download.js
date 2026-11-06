@@ -3,7 +3,7 @@ var YanjiPDFDownload = (() => {
   const flights = new Map();
   const starts = new Map();
   const progress = (pageId,text) => chrome.storage.session.set({["pdfDownloadStart:" + pageId]:text});
-  async function pdfSource(url, tabId, pageId) {
+  async function pdfSource(url, tabId, pageId, reader = false) {
     const assetPII = /(^|\.)sciencedirectassets\.com$/i.test(url.hostname) && /\/1-s2\.0-([^/]+)\/main\.pdf$/i.exec(url.pathname)?.[1];
     if (assetPII) url = new URL("https://www.sciencedirect.com/science/article/pii/" + encodeURIComponent(assetPII) + "/pdfft");
     if (!/(^|\.)sciencedirect\.com$/i.test(url.hostname) || !/\/pdfft\/?$/.test(url.pathname)) return {url:url.href};
@@ -13,7 +13,7 @@ var YanjiPDFDownload = (() => {
       if (!value || !URL.canParse(value)) return false;
       const parsed = new URL(value);
       const signed = parsed.searchParams.get("X-Amz-Date");
-      if (signed) {
+      if (signed&&!reader) {
         const parts = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/.exec(signed);
         if (!parts) return false;
         const start = Date.UTC(+parts[1], +parts[2] - 1, +parts[3], +parts[4], +parts[5], +parts[6]);
@@ -24,8 +24,9 @@ var YanjiPDFDownload = (() => {
     const source = await chrome.tabs.get(tabId), sourceURL = new URL(source.url);
     if (!/(^|\.)sciencedirect\.com$/i.test(sourceURL.hostname) || /\/science\/article\/pii\/([^/]+)/.exec(sourceURL.pathname)?.[1] !== pii) throw Error("PDF 链接不属于当前文章，请返回文章页重试。");
     const tabs = await chrome.tabs.query({windowId:source.windowId});
-    const existing = tabs.find(tab => tab.status === "complete" && isPDF(tab.url));
-    if (existing) return {url:existing.url};
+    const candidates = tabs.filter(tab => tab.status === "complete" && !tab.discarded && isPDF(tab.url));
+    const existing = candidates.find(tab=>tab.active)||candidates[0];
+    if (existing) return {url:existing.url,tabId:existing.id};
     const document = await YanjiPDFDocument.readTab(tabId);
     if (!document?.ok) throw Error("读取网页 PDF 入口失败，请刷新文章页。");
     const current = document.data.sources.find(row => {
@@ -42,7 +43,7 @@ var YanjiPDFDownload = (() => {
       function clean() { clearTimeout(timer); chrome.tabs.onUpdated.removeListener(updated); chrome.tabs.onRemoved.removeListener(removed); }
       let verificationShown=false;
       function inspect(tab) {
-        if (tab.status === "complete" && isPDF(tab.url)) { clean(); resolve({url:tab.url,closeTabId:pending?undefined:preview.id}); return; }
+        if (tab.status === "complete" && isPDF(tab.url)) { clean(); resolve({url:tab.url,tabId:tab.id,closeTabId:pending?undefined:preview.id}); return; }
         if(!verificationShown&&tab.url&&URL.canParse(tab.url)){
           const u=new URL(tab.url);
           if(/(^|\.)sciencedirectassets\.com$/i.test(u.hostname)&&u.pathname==="/craft/capi/cfts/init"){
@@ -63,6 +64,22 @@ var YanjiPDFDownload = (() => {
       chrome.tabs.onUpdated.addListener(updated); chrome.tabs.onRemoved.addListener(removed);
       chrome.tabs.get(preview.id).then(inspect, error => { clean(); reject(error); });
     });
+  }
+  async function readerTab(source, articleId) {
+    const article=await chrome.tabs.get(articleId);
+    let tab=source.tabId?await chrome.tabs.get(source.tabId):(await chrome.tabs.query({windowId:article.windowId})).find(row=>row.url?.split('#')[0]===source.url.split('#')[0]&&!row.discarded);
+    if(!tab)tab=await chrome.tabs.create({url:source.url,active:true,windowId:article.windowId,openerTabId:articleId});
+    await chrome.tabs.update(tab.id,{active:true});await chrome.windows.update(tab.windowId,{focused:true});
+    if(tab.status!=="complete")await new Promise((resolve,reject)=>{
+      function clean(){clearTimeout(timer);chrome.tabs.onUpdated.removeListener(updated);chrome.tabs.onRemoved.removeListener(removed)}
+      function inspect(value){if(value.status==="complete"){clean();resolve()}}
+      function updated(id,change,value){if(id===tab.id)inspect(value)}
+      function removed(id){if(id===tab.id){clean();reject(Error("PDF 页面已关闭，请重新打开后保存。"))}}
+      const timer=setTimeout(()=>{clean();reject(Error("PDF 阅读器尚未完成加载，请等待文档显示后重试。"))},30000);
+      chrome.tabs.onUpdated.addListener(updated);chrome.tabs.onRemoved.addListener(removed);
+      chrome.tabs.get(tab.id).then(inspect,error=>{clean();reject(error)});
+    });
+    return chrome.tabs.get(tab.id);
   }
   async function context(meta, pageId) {
     await Z.connect();
@@ -152,7 +169,7 @@ var YanjiPDFDownload = (() => {
   }
   async function startOne(message) {
     await progress(message.pageId,"检查下载任务…");
-    if (!message.localFile && !await chrome.permissions.contains({permissions:["downloads"]})) throw Error("请允许研迹下载文件后重试。");
+    if (!message.localFile && !message.reader && !await chrome.permissions.contains({permissions:["downloads"]})) throw Error("请允许研迹下载文件后重试。");
     const previous = await latest(message.pageId);
     if (previous?.state === "downloading") return {id:previous.id};
     const url = message.localFile ? null : new URL(message.url);
@@ -171,10 +188,28 @@ var YanjiPDFDownload = (() => {
       await associate(page.id,plan,Z.connection.serverID);
       return plan;
     }
-    if(message.localFile){
-      if(!plan.localImport||!plan.pickStatus)throw Error("请将 Zotero 研迹配套插件更新至 0.3.2，以选择已下载 PDF。");
-      await progress(message.pageId,"请在 Zotero 窗口选择已下载的 PDF…");
-      let result=await bridge({action:"pick",token:plan.token});
+    if(message.localFile||message.reader){
+      let action;
+      if(message.reader){
+        if(!plan.readerSave)throw Error("请将 Windows 版 Zotero 研迹配套插件更新至 0.4.1，以自动调用 Edge 阅读器。");
+        await progress(message.pageId,"打开 PDF 阅读器…");
+        const source=await pdfSource(url,message.tabId,page.id,true),tab=await readerTab(source,message.tabId);
+        let viewer;
+        try{viewer=await YanjiPDFDocument.readTab(tab.id,"PDF_VIEWER")}
+        catch(error){if(!/receiving end|could not establish|message port closed|extension context invalidated|接收端|无法建立连接/i.test(error.message))throw error}
+        const location=new URL(tab.url);
+        // A ScienceDirect PDF kept open during an update loses its content listener; the native helper still checks the exact viewer and save dialog.
+        const expectedPII=/\/science\/article\/pii\/([^/]+)/.exec(new URL(page.url).pathname)?.[1];
+        const keptPII=/\/1-s2\.0-([^/]+)\/main\.pdf$/i.exec(location.pathname)?.[1];
+        const keptPDF=viewer===undefined&&!!expectedPII&&keptPII===expectedPII&&/(^|\.)sciencedirectassets\.com$/i.test(location.hostname);
+        if(!keptPDF&&(!viewer?.ok||!viewer.data.isPDF))throw Error("当前页面不是已加载的 PDF，请完成网站验证后重试。");
+        action={action:"reader",token:plan.token,url:tab.url};
+        await progress(message.pageId,"正在通过 PDF 阅读器保存…");
+      }else{
+        if(!plan.localImport||!plan.pickStatus)throw Error("请将 Zotero 研迹配套插件更新至 0.3.2，以选择已下载 PDF。");
+        await progress(message.pageId,"请在 Zotero 窗口选择已下载的 PDF…");action={action:"pick",token:plan.token};
+      }
+      let result=await bridge(action);
       for(let attempts=0;result.pending&&attempts<400;attempts++){
         await new Promise(resolve=>setTimeout(resolve,1500));
         result=await bridge({action:"pick-status",token:plan.token});
@@ -182,8 +217,8 @@ var YanjiPDFDownload = (() => {
       if(result.pending)throw Error("PDF 选择尚未完成，请先完成或取消 Zotero 中的选择窗口。");
       if(result.cancelled)return result;
       await closePreview(previous,result);
-      const id="local-"+plan.token;
-      await chrome.storage.local.set({[prefix+id]:{id,pageId:page.id,serverID:Z.connection.serverID,localFile:true,state:"complete",filename:message.filename,result,updatedAt:Date.now()},["pdfDownloadPage:"+page.id]:id});
+      const id=(message.reader?"reader-":"local-")+plan.token;
+      await chrome.storage.local.set({[prefix+id]:{id,pageId:page.id,serverID:Z.connection.serverID,localFile:true,via:message.reader?"reader":"local",state:"complete",filename:message.filename,result,updatedAt:Date.now()},["pdfDownloadPage:"+page.id]:id});
       if(previous?.state==="complete")await chrome.storage.local.remove(prefix+previous.id);
       await associate(page.id,result,Z.connection.serverID);
       return {id};
