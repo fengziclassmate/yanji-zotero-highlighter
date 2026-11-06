@@ -28,7 +28,7 @@
   function paintJob() {
     if (!job) return;
     $d("save").disabled = job.state === "downloading" || !libraryInfo?.root;
-    if (job.state === "downloading") show("正在下载；如 Edge 询问，请选择“保存”。");
+    if (job.state === "downloading") show(job.phase === "saving" ? "正在保存到文献库…" : "正在下载；如 Edge 询问，请选择“保存”。");
     else if (job.state === "error") show(job.error, "error");
     else show(job.result.warning || job.result.message || (job.result.attachmentKey ? job.result.stored?"已保存并加入 Zotero":"已保存并关联到 Zotero" : "PDF 已保存"), job.result.warning ? "error" : "success");
     $d("saved").hidden = job.state !== "complete";
@@ -44,7 +44,7 @@
     $d("link").disabled=true;
     show("读取 PDF 信息…"); $d("dialog").showModal();
     try {
-      const response = await chrome.tabs.sendMessage(sourceTab, {type:"PDF_DOCUMENT"});
+      const response = await YanjiPDFDocument.readTab(sourceTab);
       if(sequence!==opening||!$d("dialog").open)return;
       if (!response?.ok) throw Error(response?.error || "请刷新文章页后重试。");
       documentInfo = response.data;
@@ -108,6 +108,10 @@
   };
   $d("view").onclick = () => chrome.tabs.create({url:`zotero://open-pdf/library/items/${job.result.attachmentKey}`});
   chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === "session" && $d("dialog").open) {
+      const text = changes["pdfDownloadStart:" + article?.id]?.newValue;
+      if (text) show(text);
+    }
     if(area!=="local")return;
     if(changes.pdfAutoImport){autoImport=changes.pdfAutoImport.newValue===true;if($d("dialog").open&&!libraryInfo?.binding){$d("link").checked=autoImport;importChoice();}}
     if (!$d("dialog").open) return;

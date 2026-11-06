@@ -125,5 +125,16 @@
       sources:[...sources.values()].slice(0, 12)
     };
   }
-  globalThis.YanjiPDFDocument = {describe, filename, date};
+  async function readTab(tabId) {
+    const tab = await chrome.tabs.get(tabId);
+    if (tab.frozen || tab.discarded) await chrome.tabs.update(tabId, {active:true});
+    let timer;
+    try {
+      return await Promise.race([
+        chrome.tabs.sendMessage(tabId, {type:"PDF_DOCUMENT"}),
+        new Promise((resolve,reject) => { timer = setTimeout(() => reject(Error("文章页未响应，请切回文章页并刷新后重试。")), 10000); })
+      ]);
+    } finally { clearTimeout(timer); }
+  }
+  globalThis.YanjiPDFDocument = {describe, filename, date, readTab};
 })();

@@ -1,4 +1,4 @@
-importScripts("shared.js", "zotero.js", "reading-store.js", "store.js", "pdf-sync.js", "pdf-download.js", "reference-service.js");
+importScripts("shared.js", "zotero.js", "reading-store.js", "store.js", "pdf-sync.js", "pdf-document.js", "pdf-download.js", "reference-service.js");
 const Y = Yanji;
 const Z = YanjiZotero;
 const S = YanjiStore;

@@ -2,7 +2,10 @@ var YanjiPDFDownload = (() => {
   const prefix = "pdfDownloadJob:";
   const flights = new Map();
   const starts = new Map();
+  const progress = (pageId,text) => chrome.storage.session.set({["pdfDownloadStart:" + pageId]:text});
   async function pdfSource(url, tabId) {
+    const assetPII = /(^|\.)sciencedirectassets\.com$/i.test(url.hostname) && /\/1-s2\.0-([^/]+)\/main\.pdf$/i.exec(url.pathname)?.[1];
+    if (assetPII) url = new URL("https://www.sciencedirect.com/science/article/pii/" + encodeURIComponent(assetPII) + "/pdfft");
     if (!/(^|\.)sciencedirect\.com$/i.test(url.hostname) || !/\/pdfft\/?$/.test(url.pathname)) return {url:url.href};
     const pii = /\/science\/article\/pii\/([^/]+)\/pdfft/.exec(url.pathname)?.[1];
     if (!pii) throw Error("ScienceDirect PDF 地址无效。");
@@ -23,7 +26,7 @@ var YanjiPDFDownload = (() => {
     const tabs = await chrome.tabs.query({windowId:source.windowId});
     const existing = tabs.find(tab => tab.status === "complete" && isPDF(tab.url));
     if (existing) return {url:existing.url};
-    const document = await chrome.tabs.sendMessage(tabId, {type:"PDF_DOCUMENT"});
+    const document = await YanjiPDFDocument.readTab(tabId);
     if (!document?.ok) throw Error("读取网页 PDF 入口失败，请刷新文章页。");
     const current = document.data.sources.find(row => {
       const parsed = new URL(row.url);
@@ -94,6 +97,7 @@ var YanjiPDFDownload = (() => {
         if (download.state !== "complete") throw Error(["SERVER_FORBIDDEN", "SERVER_UNAUTHORIZED"].includes(download.error) ? "网站拒绝了下载，请先在网页打开 PDF，再返回文章重新保存。" : "下载中断：" + (download.error || "请重试"));
         await Z.connect();
         if (job.serverID !== Z.connection.serverID) throw Error("Zotero 文献库已改变，PDF 暂留浏览器下载目录。");
+        await chrome.storage.local.set({[key]:{...job,phase:"saving",updatedAt:Date.now()}});
         const result = await bridge({action:"finish", token:job.token, path:download.filename});
         const completed={...job, state:"complete", result, updatedAt:Date.now()};
         await chrome.storage.local.set({[key]:completed});
@@ -125,16 +129,19 @@ var YanjiPDFDownload = (() => {
     return job;
   }
   async function startOne(message) {
+    await progress(message.pageId,"检查下载任务…");
     if (!await chrome.permissions.contains({permissions:["downloads"]})) throw Error("请允许研迹下载文件后重试。");
     const previous = await latest(message.pageId);
     if (previous?.state === "downloading") return {id:previous.id};
     const url = new URL(message.url);
     if (!/^https?:$/.test(url.protocol) || url.username || url.password) throw Error("PDF 链接须为 HTTP 或 HTTPS 地址。");
+    await progress(message.pageId,"连接 Zotero…");
     const page = await context(message.meta, message.pageId);
     const parentItemKey = message.link||message.autoImport ? page.binding?.itemKey : "";
     if(message.autoImport&&!parentItemKey&&page.match?.status==="ambiguous")throw Error("匹配到多条文献，请先在侧栏选择对应条目，或关闭自动入库。");
     if (message.link && !parentItemKey&&!message.autoImport) throw Error("请先关联对应 Zotero 文献，或取消关联选项，仅保存 PDF。");
     const existingPath=previous?.state==="complete"&&previous.filename===message.filename?previous.result.path:undefined;
+    await progress(message.pageId,"准备保存位置…");
     const plan = await bridge({action:"prepare", folder:message.folder, filename:message.filename, journal:message.journal, abbreviation:message.abbreviation, parentItemKey,autoImport:message.autoImport===true,metadata:message.metadata,existingPath});
     if(message.autoImport&&!plan.autoImport)throw Error("请将 Zotero 研迹配套插件更新至 0.3.0，以使用自动入库。");
     if (plan.existing){
@@ -142,10 +149,12 @@ var YanjiPDFDownload = (() => {
       await associate(page.id,plan,Z.connection.serverID);
       return plan;
     }
+    await progress(message.pageId,"获取 PDF 地址…");
     const source = await pdfSource(url, message.tabId);
     listen();
     let id;
     try {
+      await progress(message.pageId,"等待 Edge 启动下载；如出现提示，请选择“保存”。");
       id = await chrome.downloads.download({url:source.url, filename:"研迹临时/" + plan.temporaryName, conflictAction:"uniquify", saveAs:false});
     } finally { if (source.closeTabId) await chrome.tabs.remove(source.closeTabId); }
     const job = {id, pageId:page.id, token:plan.token, serverID:Z.connection.serverID, state:"downloading", filename:message.filename, updatedAt:Date.now()};
@@ -159,7 +168,7 @@ var YanjiPDFDownload = (() => {
   }
   function start(message) {
     if (starts.has(message.pageId)) return starts.get(message.pageId);
-    const task = startOne(message).finally(() => starts.delete(message.pageId));
+    const task = startOne(message).finally(async () => { starts.delete(message.pageId); await chrome.storage.session.remove("pdfDownloadStart:" + message.pageId); });
     starts.set(message.pageId, task);
     return task;
   }
