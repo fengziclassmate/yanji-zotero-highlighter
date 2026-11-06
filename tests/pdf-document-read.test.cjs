@@ -11,5 +11,6 @@ const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/st
   assert.equal((await scope.YanjiPDFDocument.articleTab(pdf)).id,4,'PDF sidebar must retain the matching article metadata');
   assert.equal((await scope.YanjiPDFDocument.articleTab(article)).id,4);
   await assert.rejects(scope.YanjiPDFDocument.articleTab({...pdf,url:pdf.url.replace('PAPER-01','OTHER')}),/对应的文章正文页/);
+  const sageArticle={id:8,windowId:1,url:'https://journals.sagepub.com/doi/epub/10.1177/SAGE-TEST'},sagePDF={id:9,windowId:1,url:'https://journals.sagepub.com/doi/pdf/10.1177/SAGE-TEST'};tabs.set(8,sageArticle);tabs.set(9,sagePDF);assert.equal((await scope.YanjiPDFDocument.articleTab(sagePDF)).id,8);assert.equal(scope.YanjiPDFDocument.pdfURL('https://journals.sagepub.com/doi/reader/10.1177/SAGE-TEST?download=true&access_token=fixture').href,'https://journals.sagepub.com/doi/pdf/10.1177/SAGE-TEST?access_token=fixture','Keep access parameters while removing forced download');
   console.log('PASS frozen/discarded article activation and bounded PDF metadata read');
 })().catch(error=>{console.error(error);process.exitCode=1});

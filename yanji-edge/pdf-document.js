@@ -1,5 +1,11 @@
 (() => {
   const clean = text => String(text || "").replace(/\s+/g, " ").trim();
+  function pdfURL(value) {
+    const url=new URL(value);
+    const doi=url.hostname==="journals.sagepub.com"&&/^\/doi\/(?:(?:abs|full|pdf|epdf|epub|reader)\/)?(10\.[^?#]+?)\/?$/.exec(url.pathname)?.[1];
+    if(doi){url.pathname="/doi/pdf/"+doi;url.searchParams.delete("download")}
+    return url;
+  }
   function date(value) {
     const text = clean(value);
     const english = /^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})$/.exec(text);
@@ -32,6 +38,7 @@
     const natureID = /(^|\.)nature\.com$/i.test(articleURL.hostname) && /^\/articles\/([^/.]+)/.exec(articleURL.pathname)?.[1];
     const copernicus = /(^|\.)copernicus\.org$/i.test(articleURL.hostname) && /^\/articles\/(\d+)\/(\d+)\/(\d{4})\//.exec(articleURL.pathname);
     const reviewID = /(^|\.)openreview\.net$/i.test(articleURL.hostname) && articleURL.searchParams.get("id");
+    const sagePDF=pdfURL(articleURL),sageDOI=articleURL.hostname==="journals.sagepub.com"&&/^\/doi\/pdf\/(10\..+)/.exec(sagePDF.pathname)?.[1];
     const natureButtons = natureID ? [...root.querySelectorAll('a[data-track-action="download pdf" i][href]')].map(link => new URL(link.href,root.baseURI)).filter(url => url.hostname === articleURL.hostname && [natureID + ".pdf",natureID + "_reference.pdf"].includes(url.pathname.split("/").at(-1))) : [];
     let ieeeMetadata = {};
     if (ieeeID) for (const script of root.querySelectorAll("script")) {
@@ -48,8 +55,9 @@
     }
     function add(value, label, metadata = false) {
       if (!value || !URL.canParse(value, root.baseURI)) return;
-      const url = new URL(value, root.baseURI);
+      const url = pdfURL(new URL(value, root.baseURI));
       if (!/^https?:$/.test(url.protocol) || url.username || url.password) return;
+      if(sageDOI&&(url.hostname!==articleURL.hostname||url.pathname!=="/doi/pdf/"+sageDOI))return;
       if (ieeeID) {
         if (url.hostname !== articleURL.hostname) return;
         const id = url.searchParams.get("arnumber");
@@ -106,6 +114,7 @@
       else if (taylorDOI) add("/doi/pdf/" + taylorDOI, "文章 PDF");
       else if (mdpi) add(mdpi[1] + "/pdf", "文章 PDF");
       else if (reviewID && articleURL.pathname === "/forum") add("/pdf?id=" + encodeURIComponent(reviewID), "文章 PDF");
+      else if(sageDOI)add("/doi/pdf/"+sageDOI,"文章 PDF");
     }
     const authors=[...root.querySelectorAll('meta[name="citation_author" i]')].map(node=>clean(node.content)).filter(Boolean).slice(0,100);
     if(!authors.length&&sciencedirect)for(const node of root.querySelectorAll('.author-group .author')){
@@ -131,6 +140,15 @@
   }
   async function articleTab(tab) {
     const url = new URL(tab.url);
+    if(url.hostname==="journals.sagepub.com"&&/^\/doi\/pdf\/10\./.test(url.pathname)){
+      const article=(await chrome.tabs.query({windowId:tab.windowId})).find(row=>{
+        if(!row.url||!URL.canParse(row.url))return false;
+        const other=new URL(row.url);
+        return other.hostname===url.hostname&&other.pathname!==url.pathname&&pdfURL(other).pathname===url.pathname;
+      });
+      if(!article)throw Error("请先打开这份 PDF 对应的文章正文页。");
+      return article;
+    }
     const pii = /(^|\.)sciencedirectassets\.com$/i.test(url.hostname) && /\/1-s2\.0-([^/]+)\/main\.pdf$/i.exec(url.pathname)?.[1];
     if(!pii)return tab;
     const article=(await chrome.tabs.query({windowId:tab.windowId})).find(row=>{
@@ -152,5 +170,5 @@
       ]);
     } finally { clearTimeout(timer); }
   }
-  globalThis.YanjiPDFDocument = {describe, filename, date, readTab, articleTab};
+  globalThis.YanjiPDFDocument = {describe, filename, date, readTab, articleTab, pdfURL};
 })();
