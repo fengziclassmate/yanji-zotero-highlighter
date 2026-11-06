@@ -15,10 +15,16 @@
   function describe(root = document) {
     const meta = names => names.map(name => root.querySelector(`meta[name="${name}" i],meta[property="${name}" i]`)?.content).find(Boolean) || "";
     const sources = new Map();
+    const articleURL = new URL(root.baseURI), sciencedirect = /(^|\.)sciencedirect\.com$/i.test(articleURL.hostname);
+    const articlePII = sciencedirect && /\/science\/article\/pii\/([^/]+)/.exec(articleURL.pathname)?.[1];
     function add(value, label) {
       if (!value || !URL.canParse(value, root.baseURI)) return;
       const url = new URL(value, root.baseURI);
       if (!/^https?:$/.test(url.protocol) || url.username || url.password) return;
+      if (articlePII && /(^|\.)sciencedirect\.com$/i.test(url.hostname)) {
+        const pii = /\/science\/article\/pii\/([^/]+)/.exec(url.pathname)?.[1];
+        if (pii && pii !== articlePII) return;
+      }
       url.hash = "";
       if (!sources.has(url.href)) sources.set(url.href, {url:url.href, label:clean(label) || "PDF"});
     }

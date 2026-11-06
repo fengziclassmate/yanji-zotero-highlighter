@@ -22,7 +22,7 @@
   function paintJob() {
     if (!job) return;
     $d("save").disabled = job.state === "downloading" || !libraryInfo?.root;
-    if (job.state === "downloading") show("正在下载，完成后自动保存…");
+    if (job.state === "downloading") show("正在下载；如 Edge 询问，请选择“保存”。");
     else if (job.state === "error") show(job.error, "error");
     else show(job.result.warning || (job.result.attachmentKey ? "已保存并关联到 Zotero" : "PDF 已保存"), job.result.warning ? "error" : "success");
     $d("saved").hidden = job.state !== "complete";
@@ -79,7 +79,7 @@
       const granted = await chrome.permissions.request({permissions:["downloads"]});
       if (!granted) throw Error("未允许下载文件。");
       show("准备下载…");
-      const result = await send({type:"PDF_DOWNLOAD_START", pageId:article.id, meta:article, url:$d("url").value, folder:$d("folder").value, filename:$d("filename").value.trim(), journal:documentInfo.journal, abbreviation:$d("journal").value.trim(), link:$d("link").checked});
+      const result = await send({type:"PDF_DOWNLOAD_START", pageId:article.id, meta:article, tabId:sourceTab, url:$d("url").value, folder:$d("folder").value, filename:$d("filename").value.trim(), journal:documentInfo.journal, abbreviation:$d("journal").value.trim(), link:$d("link").checked});
       if (result.existing) { job = {state:"complete", result}; }
       else job = await send({type:"PDF_DOWNLOAD_LATEST", pageId:article.id});
       paintJob();
