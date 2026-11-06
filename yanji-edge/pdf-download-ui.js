@@ -39,6 +39,7 @@
       const response = await chrome.tabs.sendMessage(sourceTab, {type:"PDF_DOCUMENT"});
       if (!response?.ok) throw Error(response?.error || "请刷新文章页后重试。");
       documentInfo = response.data;
+      if (documentInfo.blocked) throw Error("请先完成网页登录或验证，再重新打开保存 PDF。");
       const [info, latest] = await Promise.all([send({type:"PDF_DOWNLOAD_INFO", pageId:article.id, meta:article, document:documentInfo}), send({type:"PDF_DOWNLOAD_LATEST", pageId:article.id})]);
       if (sequence !== opening || !$d("dialog").open) return;
       libraryInfo = info; job = latest;

@@ -2,7 +2,7 @@
 
 在 Edge 网页正文中标注中文译文，用自己的颜色分类阅读内容，再更新到 Zotero 10 对应文献的一份笔记中。
 
-**当前版本：0.9.1。** 原生 Manifest V3 扩展，无构建步骤、第三方运行时依赖或自建服务器。网页标注和分类笔记无需额外的 Zotero 插件；要显示 Zotero PDF 原生高亮或将网页 PDF 保存至本地文献库，安装下方的配套插件。无需填写 Zotero 账号密码或手动申请 Zotero API Key。
+**当前版本：0.9.2。** 原生 Manifest V3 扩展，无构建步骤、第三方运行时依赖或自建服务器。网页标注和分类笔记无需额外的 Zotero 插件；要显示 Zotero PDF 原生高亮或将网页 PDF 保存至本地文献库，安装下方的配套插件。无需填写 Zotero 账号密码或手动申请 Zotero API Key。
 
 ## 安装到 Edge
 
@@ -19,7 +19,7 @@
 
 ## 网页 PDF 保存与命名
 
-Edge 扩展 0.9.1 配合 Zotero 插件 0.2.0，侧栏“PDF 标注”旁的下载图标打开保存小窗。
+Edge 扩展 0.9.2 配合 Zotero 插件 0.2.0，侧栏“PDF 标注”旁的下载图标打开保存小窗。
 
 1. 首次在小窗点击文件夹图标，选择自己的本地文献库根目录。保持 Zotero 运行；首次保存按 Edge 提示允许下载权限。
 2. 选择保存文件夹。研迹优先复用该期刊上次的目录与简称；有明确简称且唯一匹配现有目录时预选，否则由用户选择，不自动放到根目录。目录列表只在打开下载小窗时读取，最多显示根目录下三层文件夹，不扫描 PDF 正文。
@@ -36,6 +36,24 @@ ScienceDirect 下载会按需临时打开网页的 PDF 入口，等待网站验�
 当前识别网页元数据中的 PDF 地址及正文区域的 PDF 下载链接；未识别时可在小窗粘贴 PDF 链接。需要网站允许当前浏览器访问全文，部分登录页、验证页或嵌套阅读器需要先在网站打开真实 PDF；不保证所有出版社页面通用。
 
 [PDF 保存窗口](docs/pdf-download.png)　[Zotero 文件存储说明](https://www.zotero.org/support/attaching_files#stored_files_and_linked_files)
+
+
+### PDF 平台适配
+
+| 平台 | 处理方式 |
+| --- | --- |
+| IEEE Xplore | 识别 stamp 阅读器入口，使用 getPDF 文件接口；补充页面 JSON 中的期刊和公开日期 |
+| Taylor & Francis | 识别当前 DOI 的 ePDF/PDF 入口，采用 PDF 文件地址 |
+| MDPI | 采用当前文章的 /pdf 或文章文件，排除期刊 flyer 等宣传资料 |
+| Nature | 优先使用网页实际 Download PDF 按钮；支持部分文章的 _reference.pdf 下载入口，避免元数据中的通用 .pdf 地址转回正文 |
+| Copernicus / ESSD | 只选择当前文章的主文 PDF，不混入其他文章链接 |
+| OpenReview | 识别 /pdf?id= 及主文 PDF 附件，排除其他评论附件 |
+
+上述六个平台均在测试浏览器当前具备的访问权限下完成真实 PDF 下载和文件头校验。文件仍沿用阅读状态、日期类型、期刊简称、中文关键词及原文标题的命名流程。IEEE 和 Taylor 不再把阅读器网页当成 PDF 文件下载。
+
+下载权限由网站决定；需要登录、机构访问或人机验证时，应先在网站完成；研迹不会把验证页标题预填为论文名。研迹只在操作时读取当前页面的下载入口，不轮询文献库，也不增加后台翻译请求。
+
+入口核对参考：[Zotero 官方翻译器项目](https://github.com/zotero/translators)。研迹独立实现，未引入其代码或运行时依赖。
 
 ## 阅读与标注
 
@@ -226,3 +244,5 @@ PDF 联调已在 Zotero 10.0.6 的临时 PDF 副本完成：真实 Edge 写入�
 Radix Colors 的第三方许可说明位于 [Radix-Colors-LICENSE.txt](yanji-edge/Radix-Colors-LICENSE.txt)，仅适用于第三方配色值，不改变本项目授权。
 
 [新版侧栏操作示例](docs/sidebar.png)：复制和文件夹两个纯图标位于标题右下，分别直接复制两种格式，侧栏移除底部保存说明及备份入口，正文独立滚动，应用栏保持可见；配置与备份从右上角偏好设置进入。通常高度下分类筛选吸顶；矮窗口或大比例缩放下随正文滚动。
+
+平台 DOM 回归测试需开发环境安装 Playwright 与 Edge：`npm install --no-save playwright`，随后在仓库根目录运行 `node tests/pdf-platforms.test.cjs`。运行时扩展本身不依赖 Playwright。

@@ -79,7 +79,7 @@ var YanjiPDFDownload = (() => {
         if (download.byExtensionId !== chrome.runtime.id) throw Error("下载来源不属于研迹。");
         if (/text\/html|application\/xhtml/i.test(download.mime || "")) {
           if (download.state === "in_progress") await chrome.downloads.cancel(id);
-          throw Error("网站返回了网页而非 PDF，请先完成 PDF 页验证后重试。");
+          throw Error("网站返回了网页而非 PDF，请先在网站打开 PDF，完成登录或验证后重试。");
         }
         if (download.state !== "complete") throw Error(["SERVER_FORBIDDEN", "SERVER_UNAUTHORIZED"].includes(download.error) ? "网站拒绝了下载，请先在网页打开 PDF，再返回文章重新保存。" : "下载中断：" + (download.error || "请重试"));
         await Z.connect();

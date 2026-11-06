@@ -115,3 +115,9 @@ PDF 批注只写纯文本中文摘录与个人批注，不再附带来源网址�
 ## v0.9.1
 
 ScienceDirect PDF 先通过正常网页导航完成网站验证，再使用有效的 PDF 地址下载；识别并跳过已过期的签名地址。遇到人机验证会打开验证页，由用户完成后返回重试。修复首次授予下载权限可能漏接状态事件的问题，重新打开保存小窗时会核对任务状态；HTML 验证页会停止下载，不作为 PDF 入库。只选择当前文章的 ScienceDirect PDF，不混入其他参考文献的入口。
+
+## v0.9.2
+
+补充 IEEE Xplore、Taylor & Francis、MDPI、Nature、Copernicus/ESSD 与 OpenReview 正文 PDF 入口适配。IEEE 使用实际文件接口并读取页面内 JSON 的期刊和公开日期；Taylor 的 ePDF 转为 PDF；MDPI 排除期刊宣传页；Nature 优先实际 Download PDF 按钮，支持部分页面的 _reference.pdf 入口；Copernicus 与 OpenReview 只收集当前文章的主文 PDF。继续使用已有命名、期刊目录记忆和 Zotero 链接附件流程。
+
+IEEE 等使用站点根 base 地址的页面按实际文档 URL 识别文章；网页还在显示登录或验证提示时，保存窗口会要求先完成网页步骤，避免拿验证页作为论文标题。
