@@ -38,15 +38,19 @@ var YanjiPDFFiles = (() => {
     if (!item || item.deleted || !item.isRegularItem()) throw Error("未找到对应 Zotero 文献，请重新关联。");
     return item;
   }
-  async function directory(relative = "") {
+  async function directory(relative = "", create = false) {
     const root = rootPath();
     if (!root) throw Error("请先选择文献库根目录。");
     if (typeof relative !== "string" || relative.length > 1000 || relative.split(/[\\/]/).some(part => part === ".." || part === ".") || PathUtils.isAbsolute(relative)) throw Error("保存位置须在文献库根目录内。");
     const parts = relative.split(/[\\/]/).filter(Boolean);
     let path = root;
-    for (const part of parts) {
+    for (const [index,part] of parts.entries()) {
       if (/[<>:"|?*\u0000-\u001f]/.test(part)) throw Error("保存目录无效。");
       path = PathUtils.join(path, part);
+      if(create&&index===parts.length-1&&!await IOUtils.exists(path)){
+        if(/[. ]$/.test(part)||/^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(part))throw Error("新建目录名称无效。");
+        await IOUtils.makeDirectory(path);
+      }
       const stat = await IOUtils.stat(path, {followSymlinks:false});
       if (stat.type !== "directory" || stat.isSymlink) throw Error("请选择文献库中的普通文件夹。");
     }
@@ -55,6 +59,7 @@ var YanjiPDFFiles = (() => {
   }
   async function info(data) {
     if(data.journal!==undefined && (typeof data.journal!=="string"||data.journal.length>500) || data.abbreviation!==undefined && (typeof data.abbreviation!=="string"||data.abbreviation.length>100)) throw Error("期刊信息无效。");
+    if(data.sourceHost!==undefined&&(typeof data.sourceHost!=="string"||data.sourceHost.length>253))throw Error("期刊来源无效。");
     const bound = parent(data.parentItemKey);
     const journal = (data.journal || bound?.getField("publicationTitle") || "").trim();
     const abbreviation = (data.abbreviation || bound?.getField("journalAbbreviation") || "").trim();
@@ -102,7 +107,7 @@ var YanjiPDFFiles = (() => {
       }
       return result;
     }
-    let selected=saved&&byFolder.get(saved.folder);
+    let selected=saved&&byFolder.get(saved.folder),ambiguous=false;
     if(!selected&&bound){const paths=await itemFolders(bound);if(paths.size===1)selected=byFolder.get([...paths][0]);}
     if(!selected){
       const ranked=records.filter(record=>record.relative&&(!record.hasChildren||record.files.length)).map(record=>{
@@ -112,6 +117,7 @@ var YanjiPDFFiles = (() => {
         return {record,score};
       }).filter(row=>row.score>0).sort((a,b)=>b.score-a.score);
       if(ranked.length && (ranked.length===1||ranked[0].score>ranked[1].score)) selected=ranked[0].record;
+      else if(ranked.length)ambiguous=true;
     }
     if(!selected&&journal&&root){
       const search=new Zotero.Search(); search.libraryID=Zotero.Libraries.userLibraryID;
@@ -119,6 +125,7 @@ var YanjiPDFFiles = (() => {
       const ids=await search.search(), paths=new Set();
       for(const item of await Zotero.Items.getAsync(ids.slice(0,20))) if(item.isRegularItem()&&!item.deleted) for(const folder of await itemFolders(item)) paths.add(folder);
       if(paths.size===1)selected=byFolder.get([...paths][0]);
+      else if(paths.size>1)ambiguous=true;
     }
     let short=saved?.abbreviation||abbreviation;
     if(selected&&!saved?.abbreviation){
@@ -140,7 +147,17 @@ var YanjiPDFFiles = (() => {
         }
       }
     }
-    return {root,folders,journal,folder:selected?selected.relative:null,abbreviation:short,categoryRoots,classifiedFolders:true,autoImport:typeof YanjiPDFImport!=="undefined",localImport:true,pickStatus:true,readerSave:readerAvailable()};
+    let newFolder;
+    if(!selected&&!ambiguous&&journal&&root&&articleKind==='research'){
+      const source=[[/^ieeexplore\.ieee\.org$/i,/^IEEE$/i],[/(^|\.)sciencedirect\.com$/i,/^Elsevier$/i],[/(^|\.)mdpi\.com$/i,/^MDPI$/i],[/(^|\.)nature\.com$/i,/^Nature$/i],[/(^|\.)tandfonline\.com$/i,/^Taylor\s*(?:&|and)\s*Francis$/i],[/^journals\.sagepub\.com$/i,/^SAGE(?:\s+Publications)?$/i]].find(([host])=>host.test(data.sourceHost||''));
+      const parents=source?records.filter(row=>row.relative&&!row.relative.includes('/')&&source[1].test(row.label)):[];
+      const code=(short||aliases.short).normalize('NFKC').replace(/[<>:"/\\|?*\u0000-\u001f]/g,' ').replace(/\s+/g,' ').replace(/[. ]+$/,'').trim();
+      if(parents.length===1&&code&&code.length<=100&&!/^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(code)){
+        const candidate=parents[0].relative+'/'+code;
+        if(!await IOUtils.exists(PathUtils.join(parents[0].path,code))){newFolder=candidate;folders.push(candidate);selected={relative:candidate};short=short||aliases.short;}
+      }
+    }
+    return {root,folders,journal,folder:selected?selected.relative:null,newFolder,abbreviation:short,categoryRoots,classifiedFolders:true,autoImport:typeof YanjiPDFImport!=="undefined",localImport:true,pickStatus:true,readerSave:readerAvailable()};
   }
   async function pickRoot() {
     const {FilePicker} = ChromeUtils.importESModule("chrome://zotero/content/modules/filePicker.mjs");
@@ -161,7 +178,8 @@ var YanjiPDFFiles = (() => {
   }
   async function prepare(data) {
     for (const [token, plan] of plans) if (Date.now() - plan.at > 3600000) plans.delete(token);
-    const target = PathUtils.join(await directory(data.folder), filename(data.filename));
+    const name=filename(data.filename);
+    const target = PathUtils.join(await directory(data.folder,data.createFolder===true),name);
     const item = parent(data.parentItemKey);
     if(data.autoImport!==undefined&&typeof data.autoImport!=="boolean")throw Error("自动入库选项无效。");
     const metadata=data.autoImport?YanjiPDFImport.metadata(data.metadata):null;

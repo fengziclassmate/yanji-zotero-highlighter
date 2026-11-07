@@ -33,3 +33,4 @@ dialog{border:.5px solid var(--control-line);border-radius:10px;width:680px;max-
 #download-saved-path{font-size:12px;overflow-wrap:anywhere;margin:0 0 6px}
 #download-dialog .dialog-actions{align-items:center;gap:10px;position:sticky;bottom:-14px;background:var(--bg);margin-bottom:0;padding-bottom:12px}
 #download-save{flex:none}#download-status{margin:0;flex:1;font-size:12px}
+.paper-state-settings{margin-top:24px;padding-top:16px;border-top:.5px solid var(--line)}.paper-state-settings>summary{min-height:32px;font-size:14px;line-height:1.6;padding:5px 0}.paper-state-settings textarea{font:14px/1.6 "Segoe UI","Microsoft YaHei",sans-serif;min-height:150px}

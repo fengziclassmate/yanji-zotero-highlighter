@@ -5,6 +5,15 @@
   $d("close").innerHTML = Y.icon("close");
   $d("root").innerHTML = Y.icon("folder");
   const show = (text, kind = "") => status("#download-status", text, kind);
+  const stateFields={reading:'state',importance:'importance',priority:'priority',publication:'publication'};
+  const paperStatus=()=>Object.fromEntries(Object.entries(stateFields).map(([key,id])=>[key,$d(id).value]));
+  function paintStates(saved={}){
+    const config=settings.paperStates||Y.defaults.paperStates;
+    for(const[key,id]of Object.entries(stateFields)){
+      $d(id).innerHTML=config[key].map(row=>`<option value="${Y.escape(row.code)}">${Y.escape([row.code,row.label].filter(Boolean).join(' '))}</option>`).join('');
+      $d(id).value=config[key].some(row=>row.code===saved[key])?saved[key]:config[key][0].code;
+    }
+  }
   function importChoice(){
     $d("link-label").textContent=libraryInfo?.binding?"关联到 Zotero 文献":"自动加入 Zotero 文库";
     $d("binding").textContent=libraryInfo?.binding?.title||(libraryInfo?.ambiguous?"匹配多条文献，请先在侧栏选择。":$d("link").checked?"保存后加入“我的文库”":"未关联 Zotero，本次仅保存 PDF。");
@@ -12,7 +21,7 @@
   }
   function preview() {
     try {
-      $d("filename").value = YanjiPDFDocument.filename({state:$d("state").value, important:$d("important").checked, date:$d("date").value.trim(), dateType:$d("date-type").value, journal:$d("journal").value, keywords:$d("keywords").value, title:documentInfo.title});
+      $d("filename").value = YanjiPDFDocument.filename({prefix:Y.paperPrefix(paperStatus(),settings.paperStates||Y.defaults.paperStates), date:$d("date").value.trim(), dateType:$d("date-type").value, journal:$d("journal").value, keywords:$d("keywords").value, title:documentInfo.title});
       show("");
       importChoice();
     } catch (error) { $d("filename").value = ""; show(error.message); }
@@ -56,6 +65,7 @@
       const [info, latest, preference] = await Promise.all([send({type:"PDF_DOWNLOAD_INFO", pageId:article.id, meta:article, document:documentInfo}), send({type:"PDF_DOWNLOAD_LATEST", pageId:article.id}),chrome.storage.local.get("pdfAutoImport")]);
       if (sequence !== opening || !$d("dialog").open) return;
       libraryInfo = info; job = latest;autoImport=preference.pdfAutoImport===true;
+      paintStates(article.paperStatus||Y.paperStatuses(job?.filename,settings.paperStates||Y.defaults.paperStates));
       $d("kind").disabled=false;
       $d("local").hidden=!info.localImport;$d("local").disabled=!info.root;
       documentInfo.journal=info.journal||documentInfo.journal;
@@ -89,9 +99,10 @@
     } catch (error) { show(error.message, "error"); }
     finally { $d("root").disabled = false; }
   };
-  for (const name of ["state", "important", "date", "date-type", "journal", "keywords"]) $d(name).addEventListener("input", () => {
+  for (const name of ["state", "importance", "priority", "publication", "date", "date-type", "journal", "keywords"]) $d(name).addEventListener("input", () => {
     if (name === "date-type") $d("date").value = documentInfo[$d("date-type").value];
     preview();
+    if(Object.values(stateFields).includes(name))send({type:'PAPER_STATUS',pageId:article.id,statuses:paperStatus()}).then(saved=>{article.paperStatus=saved},error=>show(error.message,'error'));
   });
   $d("folder").onchange = () => {
     const group=Object.entries(libraryInfo.categoryRoots||{}).find(([,root])=>$d("folder").value===root||$d("folder").value.startsWith(root+"/"));
@@ -120,7 +131,7 @@
       show("准备下载…");
       const importing=$d("link").checked&&(!libraryInfo.binding||autoImport);
       const metadata=importing?{title:documentInfo.title,doi:article.doi||"",url:documentInfo.canonical||article.url,journal:documentInfo.journal,date:documentInfo.published,authors:documentInfo.authors||[],itemType:documentInfo.itemType,hasMetadata:documentInfo.hasMetadata,volume:documentInfo.volume,issue:documentInfo.issue,pages:documentInfo.pages,issn:documentInfo.issn}:undefined;
-      const result = await send({type:"PDF_DOWNLOAD_START", pageId:article.id, meta:article, tabId:sourceTab, url:$d("url").value, folder:$d("folder").value, filename:$d("filename").value.trim(), journal:documentInfo.journal, abbreviation:$d("journal").value.trim(),articleKind:$d("kind").value, link:$d("link").checked&&!!libraryInfo.binding,autoImport:importing,metadata,localFile,reader});
+      const result = await send({type:"PDF_DOWNLOAD_START", pageId:article.id, meta:article, tabId:sourceTab, url:$d("url").value, folder:$d("folder").value,createFolder:libraryInfo.newFolder===$d("folder").value, filename:$d("filename").value.trim(), journal:documentInfo.journal, abbreviation:$d("journal").value.trim(),articleKind:$d("kind").value, link:$d("link").checked&&!!libraryInfo.binding,autoImport:importing,metadata,localFile,reader});
       if(result.cancelled){show("已取消选择 PDF");return;}
       if (result.existing) { job = {state:"complete", result}; }
       else job = await send({type:"PDF_DOWNLOAD_LATEST", pageId:article.id});

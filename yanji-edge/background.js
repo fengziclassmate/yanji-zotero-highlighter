@@ -171,7 +171,7 @@ async function handle(message, sender) {
     if (type === "REF_PROGRESS") return true;
     throw Error("未知翻译操作。");
   }
-  if (["CONNECT", "SEARCH", "BIND", "SYNC", "CHECK_DOI", "ANN_ALIGN", "PDF_SCAN", "PDF_SAVE", "PDF_PREVIEW", "PDF_DOWNLOAD_INFO", "PDF_DOWNLOAD_ROOT", "PDF_DOWNLOAD_START", "PDF_DOWNLOAD_LATEST", "SETTINGS_SAVE", "CONFIG_EXPORT", "CONFIG_IMPORT", "BACKUP_META", "BACKUP_CHECK", "IMPORT_BEGIN", "IMPORT_CHUNK", "IMPORT_END", "PAGES"].includes(type) && !internal) throw new Error("此操作仅限扩展内部界面。");
+  if (["CONNECT", "SEARCH", "BIND", "SYNC", "CHECK_DOI", "ANN_ALIGN", "PDF_SCAN", "PDF_SAVE", "PDF_PREVIEW", "PDF_DOWNLOAD_INFO", "PDF_DOWNLOAD_ROOT", "PDF_DOWNLOAD_START", "PDF_DOWNLOAD_LATEST", "PAPER_STATUS", "SETTINGS_SAVE", "CONFIG_EXPORT", "CONFIG_IMPORT", "BACKUP_META", "BACKUP_CHECK", "IMPORT_BEGIN", "IMPORT_CHUNK", "IMPORT_END", "PAGES"].includes(type) && !internal) throw new Error("此操作仅限扩展内部界面。");
   await S.ready();
   if (type === "PDF_DOWNLOAD_INFO") return YanjiPDFDownload.info(message);
   if (type === "PDF_DOWNLOAD_ROOT") return YanjiPDFDownload.root();
@@ -186,6 +186,13 @@ async function handle(message, sender) {
     return pageOpen(page.id);
   }
   if (type === "SETTINGS_GET") return getSettings();
+  if(type==='PAPER_STATUS')return mutate(async()=>{
+    const page=await getPage(message.pageId),settings=await getSettings();
+    if(!page)throw Error('当前文章尚未保存，请刷新后重试。');
+    Y.paperPrefix(message.statuses,settings.paperStates);
+    page.paperStatus=Object.fromEntries(Y.paperDimensions.map(key=>[key,message.statuses[key]??settings.paperStates[key][0].code]));
+    await S.write(page);return page.paperStatus;
+  });
   if (type === "ANN_SAVE") return mutate(async () => {
     const { page, settings } = await pageGet(message.meta, sender.tab?.id);
     const annotation = message.annotation;

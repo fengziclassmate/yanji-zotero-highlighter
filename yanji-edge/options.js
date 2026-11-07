@@ -13,12 +13,24 @@ function paintCategories() {
   $("#defaultCategory").value = settings.categories.some(row => row.id === selected) ? selected : settings.categories[0]?.id;
   updateStylePreview();
 }
+function paintPaperStates(){
+  for(const key of Y.paperDimensions)$('#paper-'+key).value=settings.paperStates[key].map(row=>(row.code||'-')+'='+row.label).join('\n');
+}
+function readPaperStates(){
+  const config={};
+  for(const key of Y.paperDimensions)config[key]=$('#paper-'+key).value.split(/\r?\n/).filter(line=>line.trim()).map(line=>{
+    const at=line.indexOf('=');if(at<1)throw Error('文献状态请按“代码=含义”逐行填写。');
+    const code=line.slice(0,at).trim().normalize('NFKC');return{code:code==='-'?'':code,label:line.slice(at+1).trim()};
+  });
+  settings.paperStates=Y.validatePaperStates(config);
+}
 async function load() {
   settings = await send({ type: "SETTINGS_GET" });
   $("#pdf-auto-import").checked=(await chrome.storage.local.get("pdfAutoImport")).pdfAutoImport===true;
   loadedWidth = settings.toolbarWidth;
   sizesReset = false;
   paintCategories();
+  paintPaperStates();
   for (const key of ["defaultCategory", "quickCount", "style", "noteTitle", "buttonSize", "toolbarWidth"]) $("#" + key).value = settings[key];
   $("#toolbarOpacity").value = Math.round(settings.toolbarOpacity * 100);
   for (const key of ["navDots", "badge", "continuous", "shortcuts", "toolbarExpanded", "autoSyncOnOpen"]) $("#" + key).checked = settings[key];
@@ -45,6 +57,7 @@ $("#settings-form").onsubmit = async event => {
   event.preventDefault();
   try {
     readRows();
+    readPaperStates();
     for (const key of ["defaultCategory", "style", "noteTitle"]) settings[key] = $("#" + key).value;
     settings.quickCount = Number($("#quickCount").value);
     if (!sizesReset) {

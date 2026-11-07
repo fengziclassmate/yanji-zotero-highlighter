@@ -13,8 +13,46 @@
     navDots: true, badge: true, continuous: false, shortcuts: false,
     noteTitle: "网页阅读标注", autoSyncOnOpen: true,
     toolbarExpanded: true, toolbarOpacity: 0.88, buttonSize: 28,
-    toolbarWidth: 340, toolbarHeight: 0, editorWidth: 360, editorHeight: 0
+    toolbarWidth: 340, toolbarHeight: 0, editorWidth: 360, editorHeight: 0,
+    paperStates: {
+      reading:[{code:"T",label:"未读"},{code:"L",label:"略读"},{code:"R",label:"精读"},{code:"H",label:"暂缓"},{code:"X",label:"排除"}],
+      importance:[{code:"",label:"常规"},{code:"S",label:"重要"},{code:"SS",label:"核心"},{code:"SSS",label:"关键"}],
+      priority:[{code:"",label:"常规"},{code:"P1",label:"立即阅读"},{code:"P2",label:"近期阅读"},{code:"P3",label:"备用"}],
+      publication:[{code:"",label:"未发布"},{code:"D",label:"草稿"},{code:"G",label:"公众号发布"}]
+    }
   };
+  const paperDimensions=["importance","priority","reading","publication"];
+  function validatePaperStates(value) {
+    if(!value||typeof value!=="object")throw Error("文献状态配置无效。");
+    const codes=new Set();
+    for(const key of paperDimensions){
+      const rows=value[key];
+      if(!Array.isArray(rows)||!rows.length||rows.length>20)throw Error("每组文献状态应为 1–20 项。");
+      if(key==='reading'?!rows[0]?.code:rows[0]?.code!=='')throw Error("阅读状态首项需要标识，其余维度首项需为 -。");
+      for(const [index,row] of rows.entries()){
+        if(!row.code&&(key==='reading'||index!==0))throw Error("空标识只能用于可选维度的首项。");
+        if(typeof row.code!=="string"||row.code.length>8||row.code&&!/^[\p{L}\p{N}★↑!+]+$/u.test(row.code)||typeof row.label!=="string"||!row.label.trim()||row.label.length>32)throw Error("状态标识限 8 字符，不含空格、横线、下划线或文件名禁用字符。");
+        if(row.code&&codes.has(row.code))throw Error("文献状态标识重复，请使用不同代码。");
+        if(row.code)codes.add(row.code);
+      }
+    }
+    return value;
+  }
+  function paperPrefix(selection,config=defaults.paperStates){
+    if(!selection||typeof selection!=="object")throw Error("文献状态无效。");
+    validatePaperStates(config);
+    const values=paperDimensions.map(key=>{const code=selection[key]??config[key][0].code;if(!config[key].some(row=>row.code===code))throw Error("请选择有效的文献状态。");return code});
+    return values.filter(Boolean).join('-');
+  }
+  function paperStatuses(filename,config=defaults.paperStates){
+    const result=Object.fromEntries(paperDimensions.map(key=>[key,config[key][0].code]));
+    const head=(filename||'').split('_')[0];
+    if(/^(?:S)?[TLG]$/.test(head)){
+      if(head.startsWith('S'))result.importance='S';
+      const old=head.at(-1);if(old==='G')result.publication='G';else result.reading=old;
+    }else for(const code of head.split('-'))for(const key of paperDimensions)if(config[key].some(row=>row.code===code))result[key]=code;
+    return result;
+  }
   const settingsWithDefaults = saved => ({ ...structuredClone(defaults), ...saved });
   const configSettings = saved => Object.fromEntries(Object.keys(defaults).map(key => [key, structuredClone(saved[key] ?? defaults[key])]));
   const icon = name => `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${({ download: '<path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/>', back: '<path d="m10 5-7 7 7 7M3 12h18"/>', bookmark: '<path d="M6 3h12v18l-6-4-6 4Z"/>', resume: '<path d="M3 4v5h5"/><path d="M4 9a9 9 0 1 1-1 7M12 7v5l3 2"/>', folder: '<path d="M3 7V4h6l3 3h9v13H3Z"/>', preview: '<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>', external: '<path d="M14 3h7v7M21 3 10 14"/><path d="M10 3H3v18h18v-7"/>', close: '<path d="m6 6 12 12M6 18 18 6"/>', copy: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V4H4v12h4"/>', comment: '<path d="M20 11a8 8 0 0 1-8 8H4l1-5a8 8 0 1 1 15-3Z"/><path d="M8 9h8M8 13h5"/>', settings: '<path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3" fill="var(--bg)"/><circle cx="15" cy="17" r="3" fill="var(--bg)"/>', up: '<path d="m6 14 6-6 6 6"/>', down: '<path d="m6 10 6 6 6-6"/>', trash: '<path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/>', refresh: '<path d="M20 7v5h-5M4 17v-5h5M5.5 8a7 7 0 0 1 11.5-3l3 3M4 16l3 3a7 7 0 0 0 11.5-3"/>', locate: '<circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>', more: '<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>' })[name]}</svg>`;
@@ -92,6 +130,7 @@
   };
   const validateSettings = settings => {
     settings = configSettings(settings);
+    validatePaperStates(settings.paperStates);
     if (!Array.isArray(settings.categories) || !settings.categories.length || settings.categories.length > 30) throw new Error("请保留 1–30 个分类。");
     const ids = new Set();
     for (const category of settings.categories) {
@@ -140,5 +179,5 @@
     return url.href;
   };
   const translationScopes = { references: "enabled", recommended: "recommendedEnabled", citedBy: "citedByEnabled" };
-  globalThis.Yanji = { defaults, uiColors, translationScopes, copyAnnotation, readingURL, settingsWithDefaults, configSettings, icon, normalize, folderTitle, sentences, alignedEnglish, validatePairs, doi, cleanURL, pageID, escape, returnURL, summaryTitle, splitNote, renderManaged, planNote, noteLimit, markdown, validateSettings, validateAnnotation };
+  globalThis.Yanji = { defaults, uiColors, paperDimensions, paperPrefix,paperStatuses,validatePaperStates,translationScopes, copyAnnotation, readingURL, settingsWithDefaults, configSettings, icon, normalize, folderTitle, sentences, alignedEnglish, validatePairs, doi, cleanURL, pageID, escape, returnURL, summaryTitle, splitNote, renderManaged, planNote, noteLimit, markdown, validateSettings, validateAnnotation };
 })();

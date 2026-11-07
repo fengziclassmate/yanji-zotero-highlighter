@@ -100,7 +100,7 @@ var YanjiPDFDownload = (() => {
   const bridge = data => Z.write("../yanji/pdf/files", "POST", data, {}, true, 120000);
   async function info(message) {
     const page = await context(message.meta, message.pageId);
-    const result = await bridge({action:"info", journal:message.document.journal, abbreviation:message.document.abbreviation,articleKind:message.document.articleKind||"research", parentItemKey:page.binding?.itemKey});
+    const result = await bridge({action:"info", journal:message.document.journal, abbreviation:message.document.abbreviation,articleKind:message.document.articleKind||"research",sourceHost:message.document.sourceHost, parentItemKey:page.binding?.itemKey});
     return {...result, binding:page.binding, ambiguous:page.match?.status === "ambiguous"};
   }
   async function associate(pageId,result,serverID) {
@@ -186,7 +186,7 @@ var YanjiPDFDownload = (() => {
     if (message.link && !parentItemKey&&!message.autoImport) throw Error("请先关联对应 Zotero 文献，或取消关联选项，仅保存 PDF。");
     const existingPath=previous?.state==="complete"&&previous.filename===message.filename?previous.result.path:undefined;
     await progress(message.pageId,"准备保存位置…");
-    const plan = await bridge({action:"prepare", folder:message.folder, filename:message.filename, journal:message.journal, abbreviation:message.abbreviation,articleKind:message.articleKind||"research", parentItemKey,autoImport:message.autoImport===true,metadata:message.metadata,existingPath});
+    const plan = await bridge({action:"prepare", folder:message.folder,createFolder:message.createFolder===true, filename:message.filename, journal:message.journal, abbreviation:message.abbreviation,articleKind:message.articleKind||"research", parentItemKey,autoImport:message.autoImport===true,metadata:message.metadata,existingPath});
     if(message.autoImport&&!plan.autoImport)throw Error("请将 Zotero 研迹配套插件更新至 0.3.0，以使用自动入库。");
     if (plan.existing){
       if(previous?.state==="complete"&&existingPath===plan.path)await chrome.storage.local.set({[prefix+previous.id]:{...previous,result:{...plan,warning:plan.warning||""},updatedAt:Date.now()}});

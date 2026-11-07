@@ -8,6 +8,8 @@
   }
   function date(value) {
     const text = clean(value);
+    const monthYear=/^([A-Za-z]+)\s+(\d{4})$/.exec(text);
+    if(monthYear){const month=["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"].indexOf(monthYear[1].slice(0,3).toLowerCase())+1;return month?monthYear[2]+String(month).padStart(2,"0"):"";}
     const monthFirst=/^([A-Za-z]+)\s*(\d{1,2}),?\s*(\d{4})$/.exec(text);
     if(monthFirst)return date(monthFirst[2]+" "+monthFirst[1]+" "+monthFirst[3]);
     const english = /^(\d{1,2})\s*([A-Za-z]+)\s*(\d{4})$/.exec(text);
@@ -21,7 +23,8 @@
   }
   function history(root) {
     const host=new URL(root.URL||root.baseURI).hostname;
-    const selector=/(^|\.)sciencedirect\.com$/i.test(host)?'.author-group,#author-group,.article-history,.publication-history,#publication-history,.dates':/(^|\.)tandfonline\.com$/i.test(host)?'.itemPageRangeHistory,.articleHistory,.article-history':'.article-history,[data-testid="article-history"]';
+    const copernicus=/(^|\.)copernicus\.org$/i.test(host);
+    const selector=copernicus?'#article-dates,.article-dates':/(^|\.)sciencedirect\.com$/i.test(host)?'.author-group,#author-group,.article-history,.publication-history,#publication-history,.dates':/(^|\.)tandfonline\.com$/i.test(host)?'.itemPageRangeHistory,.articleHistory,.article-history':'.article-history,[data-testid="article-history"]';
     const excluded='#yanji-root,.references,.bibliography,.ref-list,#recommended-articles,#cited-by,script,style';
     const fields=[...root.querySelectorAll(selector)].filter(n=>!n.closest(excluded)).map(n=>n.textContent);
     if(/(^|\.)(sciencedirect|tandfonline)\.com$/i.test(host))for(const node of root.querySelectorAll('p,span,li,div')){
@@ -30,15 +33,16 @@
     }
     const text=fields.join('\n');
     const value=label=>{const match=new RegExp('(?:'+label+')\\s*[:：]?\\s*(\\d{1,2}\\s*[A-Za-z]+\\s*\\d{4}|[A-Za-z]+\\s+\\d{1,2},?\\s*\\d{4}|\\d{4}[-/.]\\d{1,2}[-/.]\\d{1,2})','i').exec(text);return match?date(match[1]):''};
-    return {accepted:value('Accepted(?:\\s+on)?|接收日期|接受日期|录用日期'),published:value('Available\\s+online|Published\\s+online|First\\s+published(?:\\s+online)?|在线发表|公开日期')};
+    return {accepted:value('Accepted(?:\\s+on)?|接收日期|接受日期|录用日期'),published:value('Available\\s+online|Published\\s+online|First\\s+published(?:\\s+online)?|在线发表|公开日期'+(copernicus?'|Published':''))};
   }
-  function filename({state = "T", important = false, date: day, dateType = "published", journal, keywords = "", title}) {
-    if (!["T", "G", "L"].includes(state) || !["published", "accepted"].includes(dateType)) throw Error("文献状态或日期类型无效。");
+  function filename({prefix, state = "T", important = false, date: day, dateType = "published", journal, keywords = "", title}) {
+    if (prefix===undefined?!["T", "G", "L"].includes(state):typeof prefix!=="string"||!prefix||prefix.length>40||!/^[\p{L}\p{N}★↑!+]+(?:-[\p{L}\p{N}★↑!+]+)*$/u.test(prefix))throw Error("文献状态标识无效。");
+    if (!["published", "accepted"].includes(dateType)) throw Error("日期类型无效。");
     if (!/^\d{4}(?:\d{2}(?:\d{2})?)?$/.test(day)) throw Error("日期请填写年份或年月日，例如 2026 或 20261106。");
     if (day.length >= 6 && (+day.slice(4,6) < 1 || +day.slice(4,6) > 12) || day.length === 8 && (+day.slice(6) < 1 || +day.slice(6) > new Date(Date.UTC(+day.slice(0,4), +day.slice(4,6), 0)).getUTCDate())) throw Error("日期无效。");
     if (!clean(journal) || !clean(title)) throw Error("请填写期刊简称和标题。");
     const safe = value => clean(value).replace(/[<>:"/\\|?*\u0000-\u001f]/g, " ").replace(/\s+/g, " ").trim();
-    return `${important ? "S" : ""}${state}_${day}${dateType === "accepted" ? "a" : ""}_${safe(journal)}_（${safe(keywords)}）${safe(title).replace(/[. ]+$/, "")}.pdf`;
+    return `${prefix??((important?"S":"")+state)}_${day}${dateType === "accepted" ? "a" : ""}_${safe(journal)}_（${safe(keywords)}）${safe(title).replace(/[. ]+$/, "")}.pdf`;
   }
   function describe(root = document) {
     const meta = names => names.map(name => root.querySelector(`meta[name="${name}" i],meta[property="${name}" i]`)?.content).find(Boolean) || "";
@@ -61,7 +65,7 @@
       if (!match) continue;
       try {
         const parsed = JSON.parse(match[1]);
-        ieeeMetadata = Object.fromEntries(["pdfUrl","publicationTitle","displayPublicationDate","publicationYear","volume","issue","startPage","endPage"].filter(key => typeof parsed[key] === "string").map(key => [key,parsed[key]]));
+        ieeeMetadata = Object.fromEntries(["pdfUrl","publicationTitle","displayPublicationDate","publicationDate","publicationYear","volume","issue","startPage","endPage"].filter(key => typeof parsed[key] === "string").map(key => [key,parsed[key]]));
         if(typeof parsed.isJournal==="boolean")ieeeMetadata.isJournal=parsed.isJournal;
         if(Array.isArray(parsed.authors))ieeeMetadata.authors=parsed.authors.slice(0,100).filter(author=>author&&typeof author==="object"||typeof author==="string").map(author=>typeof author==="string"?author:typeof author.name==="string"?author.name:[author.firstName,author.lastName].filter(value=>typeof value==="string").join(" ")).filter(Boolean);
       }
@@ -139,7 +143,7 @@
     if(!authors.length)authors.push(...meta(["citation_authors"]).split(";").map(clean).filter(Boolean).slice(0,100));
     const firstPage=meta(["citation_firstpage"])||ieeeMetadata.startPage||"",lastPage=meta(["citation_lastpage"])||ieeeMetadata.endPage||"";
     const dates=history(root),accepted=date(meta(["citation_acceptance_date","citation_accepted_date","dc.date.accepted","dcterms.dateAccepted"]));
-    const published=date(meta(["citation_publication_date","citation_date","dc.date","prism.publicationDate"])||ieeeMetadata.displayPublicationDate||ieeeMetadata.publicationYear);
+    const published=date(meta(["citation_publication_date","citation_date","dc.date","prism.publicationDate"])||ieeeMetadata.displayPublicationDate||ieeeMetadata.publicationDate||ieeeMetadata.publicationYear);
     const online=date(meta(["citation_online_date","citation_first_online_date","prism.onlineDate","dc.date.available"]));
     const types=[meta(["citation_article_type","citation_type","dc.type","prism.genre"]),...[...root.querySelectorAll('.publication-type,.publicationType,.article-type,[data-testid="article-type"]')].filter(n=>!n.closest('#yanji-root,.references,.bibliography,.ref-list,#recommended-articles,#cited-by')).map(n=>clean(n.textContent))];
     const articleKind=types.some(t=>/^(?:review(?: article)?|literature review|systematic review|综述)$/i.test(t))?'review':types.some(t=>/^(?:data(?: article| paper| descriptor)|dataset|数据集|数据论文)$/i.test(t))?'dataset':'research';
@@ -150,6 +154,7 @@
       published:dates.published||online||published,
       accepted:dates.accepted||accepted,
       articleKind,
+      sourceHost:articleURL.hostname,
       canonical:root.querySelector('link[rel="canonical"]')?.href||articleURL.href,
       hasMetadata:!!(meta(["citation_title","dc.title"])||ieeeMetadata.publicationTitle),
       itemType:meta(["citation_conference_title"])&&!meta(["citation_journal_title"])||ieeeMetadata.isJournal===false?"conferencePaper":/(^|\.)arxiv\.org$/i.test(articleURL.hostname)?"preprint":"journalArticle",

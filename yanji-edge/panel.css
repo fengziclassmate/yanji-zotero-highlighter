@@ -142,12 +142,14 @@
 .panel-body .download-fields { gap: var(--panel-md); margin: var(--panel-md) 0 var(--panel-lg); }
 .panel-body .field label { margin-bottom: var(--panel-xs); }
 .panel-body .download-location { gap: var(--panel-sm); }
+.panel-body .download-status-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: var(--panel-md) var(--panel-sm); }
 .panel-body #download-dialog .dialog-actions { bottom: calc(-1 * var(--panel-lg)); gap: var(--panel-sm); padding-bottom: var(--panel-md); }
 .panel-body .undo-toast { inset-inline: var(--panel-gutter); bottom: var(--panel-md); gap: var(--panel-sm); border-radius: var(--panel-surface-radius); padding: var(--panel-sm) var(--panel-md); }
 :root.ui-tight .panel-body { --panel-gutter: var(--panel-md); }
 :root.ui-tight .panel-body .topbar { padding-inline: var(--panel-gutter); }
 :root.ui-tight .panel-body .sync-actions > :is(#sync, #pdf-open) { flex-basis: calc(50% - var(--panel-sm)); }
 :root.ui-tight .panel-body .download-date-row { grid-template-columns: 1fr; }
+:root.ui-tight .panel-body .download-status-grid { grid-template-columns: 1fr; }
 @media (pointer: coarse) {
   .panel-body { --panel-target: 44px; }
   .panel-body .category-filters { grid-template-columns: repeat(3, minmax(0, 1fr)); }
