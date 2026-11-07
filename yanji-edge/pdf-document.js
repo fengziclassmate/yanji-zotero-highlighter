@@ -8,7 +8,9 @@
   }
   function date(value) {
     const text = clean(value);
-    const english = /^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})$/.exec(text);
+    const monthFirst=/^([A-Za-z]+)\s*(\d{1,2}),?\s*(\d{4})$/.exec(text);
+    if(monthFirst)return date(monthFirst[2]+" "+monthFirst[1]+" "+monthFirst[3]);
+    const english = /^(\d{1,2})\s*([A-Za-z]+)\s*(\d{4})$/.exec(text);
     if (english) {
       const month = ["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"].indexOf(english[2].slice(0,3).toLowerCase()) + 1;
       return month ? english[3] + String(month).padStart(2,"0") + english[1].padStart(2,"0") : "";
@@ -16,6 +18,19 @@
     if (/^\d{8}$/.test(text)) return text;
     const match = text.match(/^(\d{4})(?:[-/.](\d{1,2})(?:[-/.](\d{1,2}))?)?/);
     return match ? match[1] + (match[2] ? match[2].padStart(2, "0") : "") + (match[3] ? match[3].padStart(2, "0") : "") : "";
+  }
+  function history(root) {
+    const host=new URL(root.URL||root.baseURI).hostname;
+    const selector=/(^|\.)sciencedirect\.com$/i.test(host)?'.author-group,#author-group,.article-history,.publication-history,#publication-history,.dates':/(^|\.)tandfonline\.com$/i.test(host)?'.itemPageRangeHistory,.articleHistory,.article-history':'.article-history,[data-testid="article-history"]';
+    const excluded='#yanji-root,.references,.bibliography,.ref-list,#recommended-articles,#cited-by,script,style';
+    const fields=[...root.querySelectorAll(selector)].filter(n=>!n.closest(excluded)).map(n=>n.textContent);
+    if(/(^|\.)(sciencedirect|tandfonline)\.com$/i.test(host))for(const node of root.querySelectorAll('p,span,li,div')){
+      const text=clean(node.textContent);
+      if(node.children.length<=10&&text.length<500&&!node.closest(excluded)&&/^(?:Received|Accepted|Available\s+online|Published\s+online|First\s+published)\b/i.test(text))fields.push(text);
+    }
+    const text=fields.join('\n');
+    const value=label=>{const match=new RegExp('(?:'+label+')\\s*[:：]?\\s*(\\d{1,2}\\s*[A-Za-z]+\\s*\\d{4}|[A-Za-z]+\\s+\\d{1,2},?\\s*\\d{4}|\\d{4}[-/.]\\d{1,2}[-/.]\\d{1,2})','i').exec(text);return match?date(match[1]):''};
+    return {accepted:value('Accepted(?:\\s+on)?|接收日期|接受日期|录用日期'),published:value('Available\\s+online|Published\\s+online|First\\s+published(?:\\s+online)?|在线发表|公开日期')};
   }
   function filename({state = "T", important = false, date: day, dateType = "published", journal, keywords = "", title}) {
     if (!["T", "G", "L"].includes(state) || !["published", "accepted"].includes(dateType)) throw Error("文献状态或日期类型无效。");
@@ -27,7 +42,7 @@
   }
   function describe(root = document) {
     const meta = names => names.map(name => root.querySelector(`meta[name="${name}" i],meta[property="${name}" i]`)?.content).find(Boolean) || "";
-    if (!meta(["citation_title","dc.title","og:title"]) && /Just a moment|Security verification|Access Denied|Verifying your browser|Verify you are human|请稍[候后]/i.test(root.title)) return {title:clean(root.title),journal:"",abbreviation:"",published:"",accepted:"",sources:[],blocked:true};
+    if (!meta(["citation_title","dc.title","og:title"]) && /Just a moment|Security verification|Access Denied|Problem processing your request|Verifying your browser|Verify you are human|请稍[候后]/i.test(root.title)) return {title:clean(root.title),journal:"",abbreviation:"",published:"",accepted:"",sources:[],blocked:true};
     const sources = new Map();
     const articleURL = new URL(root.URL || root.baseURI), sciencedirect = /(^|\.)sciencedirect\.com$/i.test(articleURL.hostname);
     const articlePII = sciencedirect && /\/science\/article\/pii\/([^/]+)/.exec(articleURL.pathname)?.[1];
@@ -123,12 +138,18 @@
     }
     if(!authors.length)authors.push(...meta(["citation_authors"]).split(";").map(clean).filter(Boolean).slice(0,100));
     const firstPage=meta(["citation_firstpage"])||ieeeMetadata.startPage||"",lastPage=meta(["citation_lastpage"])||ieeeMetadata.endPage||"";
+    const dates=history(root),accepted=date(meta(["citation_acceptance_date","citation_accepted_date","dc.date.accepted","dcterms.dateAccepted"]));
+    const published=date(meta(["citation_publication_date","citation_date","dc.date","prism.publicationDate"])||ieeeMetadata.displayPublicationDate||ieeeMetadata.publicationYear);
+    const online=date(meta(["citation_online_date","citation_first_online_date","prism.onlineDate","dc.date.available"]));
+    const types=[meta(["citation_article_type","citation_type","dc.type","prism.genre"]),...[...root.querySelectorAll('.publication-type,.publicationType,.article-type,[data-testid="article-type"]')].filter(n=>!n.closest('#yanji-root,.references,.bibliography,.ref-list,#recommended-articles,#cited-by')).map(n=>clean(n.textContent))];
+    const articleKind=types.some(t=>/^(?:review(?: article)?|literature review|systematic review|综述)$/i.test(t))?'review':types.some(t=>/^(?:data(?: article| paper| descriptor)|dataset|数据集|数据论文)$/i.test(t))?'dataset':'research';
     return {
       title:clean(meta(["citation_title", "dc.title", "og:title"]) || root.title),
       journal:clean(meta(["citation_journal_title", "citation_conference_title", "prism.publicationName", "dc.source"]) || ieeeMetadata.publicationTitle),
       abbreviation:clean(meta(["citation_journal_abbrev", "citation_journal_abbreviation", "prism.abbreviation"])),
-      published:date(meta(["citation_publication_date", "citation_date", "dc.date", "prism.publicationDate"]) || ieeeMetadata.displayPublicationDate || ieeeMetadata.publicationYear),
-      accepted:date(meta(["citation_acceptance_date", "citation_accepted_date", "dc.date.accepted", "dcterms.dateAccepted"])),
+      published:dates.published||online||published,
+      accepted:dates.accepted||accepted,
+      articleKind,
       canonical:root.querySelector('link[rel="canonical"]')?.href||articleURL.href,
       hasMetadata:!!(meta(["citation_title","dc.title"])||ieeeMetadata.publicationTitle),
       itemType:meta(["citation_conference_title"])&&!meta(["citation_journal_title"])||ieeeMetadata.isJournal===false?"conferencePaper":/(^|\.)arxiv\.org$/i.test(articleURL.hostname)?"preprint":"journalArticle",
@@ -137,6 +158,30 @@
       pages:firstPage+(lastPage&&lastPage!==firstPage?"-"+lastPage:""),issn:clean(meta(["citation_issn"])),
       sources:[...sources.values()].slice(0, 12)
     };
+  }
+  async function prepare(root=document) {
+    let info=describe(root);
+    if(info.accepted||!/(^|\.)sciencedirect\.com$/i.test(new URL(root.URL||root.baseURI).hostname))return info;
+    const visible=n=>n.getClientRects().length>0&&getComputedStyle(n).visibility!=='hidden';
+    const candidates=[...root.querySelectorAll('.author-group button,#author-group button,button[data-aa-name="show-more"],button#show-more-btn')].filter(n=>visible(n)&&/^(?:show more|显示更多|展开更多)$/i.test(clean(n.textContent)));
+    const buttons=candidates.length?candidates:[...root.querySelectorAll('button,[role="button"]')].filter(n=>visible(n)&&/^(?:show more|显示更多|展开更多)$/i.test(clean(n.textContent))&&!n.closest('#yanji-root,.references,.bibliography,.ref-list'));
+    if(buttons.length!==1)return info;
+    const button=buttons[0],expanded=button.getAttribute('aria-expanded');
+    if(expanded==='true')return info;
+    let observer,timer;
+    try{
+      await new Promise(resolve=>{
+        const done=()=>{clearTimeout(timer);observer.disconnect();resolve()};
+        observer=new MutationObserver(()=>{if(history(root).accepted)done()});
+        observer.observe(root.body,{subtree:true,childList:true,characterData:true});
+        timer=setTimeout(done,1800);button.click();if(history(root).accepted)done();
+      });
+      info=describe(root);
+    }finally{
+      clearTimeout(timer);observer?.disconnect();
+      if(button.isConnected&&(button.getAttribute('aria-expanded')==='true'||/^(?:show less|收起)$/i.test(clean(button.textContent))))button.click();
+    }
+    return info;
   }
   async function articleTab(tab) {
     const url = new URL(tab.url);
@@ -170,5 +215,5 @@
       ]);
     } finally { clearTimeout(timer); }
   }
-  globalThis.YanjiPDFDocument = {describe, filename, date, readTab, articleTab, pdfURL};
+  globalThis.YanjiPDFDocument = {describe, prepare, filename, date, readTab, articleTab, pdfURL};
 })();

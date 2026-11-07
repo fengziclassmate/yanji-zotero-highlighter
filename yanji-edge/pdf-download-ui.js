@@ -44,24 +44,29 @@
     $d("form").reset(); $d("save").disabled = true; $d("saved").hidden = true;
     $d("local").hidden=true;
     $d("link").disabled=true;
+    $d("kind").disabled=true;
     show("读取 PDF 信息…"); $d("dialog").showModal();
     try {
       const response = await YanjiPDFDocument.readTab(sourceTab);
       if(sequence!==opening||!$d("dialog").open)return;
       if (!response?.ok) throw Error(response?.error || "请刷新文章页后重试。");
       documentInfo = response.data;
+      $d("kind").value=documentInfo.articleKind||"research";
       if (documentInfo.blocked) throw Error("请先完成网页登录或验证，再重新打开保存 PDF。");
       const [info, latest, preference] = await Promise.all([send({type:"PDF_DOWNLOAD_INFO", pageId:article.id, meta:article, document:documentInfo}), send({type:"PDF_DOWNLOAD_LATEST", pageId:article.id}),chrome.storage.local.get("pdfAutoImport")]);
       if (sequence !== opening || !$d("dialog").open) return;
       libraryInfo = info; job = latest;autoImport=preference.pdfAutoImport===true;
+      $d("kind").disabled=false;
       $d("local").hidden=!info.localImport;$d("local").disabled=!info.root;
       documentInfo.journal=info.journal||documentInfo.journal;
       folders();
       $d("url").value = documentInfo.sources[0]?.url || "";
       $d("sources").innerHTML = documentInfo.sources.map(source => `<option value="${Y.escape(source.url)}">${Y.escape(source.label)}</option>`).join("");
-      $d("date").value = documentInfo.published;
+      $d("date-type").value=documentInfo.accepted?"accepted":"published";
+      $d("date").value = documentInfo.accepted||documentInfo.published;
       $d("link").disabled = false; $d("link").checked = !!info.binding||autoImport;
       preview(); paintJob();
+      if($d("kind").value!=="research"&&!info.classifiedFolders){$d("save").disabled=true;throw Error("请将 Zotero 研迹配套插件更新至 0.5.0，以分类保存综述和数据集。");}
       if(autoImport&&!info.autoImport){$d("save").disabled=true;throw Error("请将 Zotero 研迹配套插件更新至 0.3.0，以使用自动入库。");}
     } catch (error) { show(error.message, "error"); }
   };
@@ -89,9 +94,21 @@
     preview();
   });
   $d("folder").onchange = () => {
+    const group=Object.entries(libraryInfo.categoryRoots||{}).find(([,root])=>$d("folder").value===root||$d("folder").value.startsWith(root+"/"));
+    if(group){$d("kind").value=group[0];documentInfo.articleKind=group[0];preview();return;}
     const leaf = $d("folder").value.split("/").at(-1).replace(/^\d+[-_ ]*/, "");
     if (leaf) $d("journal").value = leaf;
     preview();
+  };
+  $d("kind").onchange=async()=>{
+    const kind=$d("kind").value,code=$d("journal").value,sequence=opening;
+    documentInfo.articleKind=kind;$d("save").disabled=true;
+    try{
+      const info=await send({type:"PDF_DOWNLOAD_INFO",pageId:article.id,meta:article,document:{...documentInfo,articleKind:kind}});
+      if(sequence!==opening||!$d("dialog").open||kind!==$d("kind").value)return;
+      if(kind!=="research"&&!info.classifiedFolders)throw Error("请将 Zotero 研迹配套插件更新至 0.5.0，以分类保存综述和数据集。");
+      libraryInfo=info;folders();if(code)$d("journal").value=code;preview();paintJob();
+    }catch(error){show(error.message,"error")}
   };
   async function save(localFile = false) {
     $d("save").disabled = true;
@@ -103,7 +120,7 @@
       show("准备下载…");
       const importing=$d("link").checked&&(!libraryInfo.binding||autoImport);
       const metadata=importing?{title:documentInfo.title,doi:article.doi||"",url:documentInfo.canonical||article.url,journal:documentInfo.journal,date:documentInfo.published,authors:documentInfo.authors||[],itemType:documentInfo.itemType,hasMetadata:documentInfo.hasMetadata,volume:documentInfo.volume,issue:documentInfo.issue,pages:documentInfo.pages,issn:documentInfo.issn}:undefined;
-      const result = await send({type:"PDF_DOWNLOAD_START", pageId:article.id, meta:article, tabId:sourceTab, url:$d("url").value, folder:$d("folder").value, filename:$d("filename").value.trim(), journal:documentInfo.journal, abbreviation:$d("journal").value.trim(), link:$d("link").checked&&!!libraryInfo.binding,autoImport:importing,metadata,localFile,reader});
+      const result = await send({type:"PDF_DOWNLOAD_START", pageId:article.id, meta:article, tabId:sourceTab, url:$d("url").value, folder:$d("folder").value, filename:$d("filename").value.trim(), journal:documentInfo.journal, abbreviation:$d("journal").value.trim(),articleKind:$d("kind").value, link:$d("link").checked&&!!libraryInfo.binding,autoImport:importing,metadata,localFile,reader});
       if(result.cancelled){show("已取消选择 PDF");return;}
       if (result.existing) { job = {state:"complete", result}; }
       else job = await send({type:"PDF_DOWNLOAD_LATEST", pageId:article.id});

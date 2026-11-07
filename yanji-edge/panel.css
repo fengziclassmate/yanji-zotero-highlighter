@@ -136,6 +136,9 @@
 .panel-body .sentence-candidate { gap: var(--panel-sm); padding: var(--panel-sm); }
 .panel-body .pdf-match { padding: var(--panel-xs) 0 var(--panel-lg); }
 .panel-body #download-dialog { width: 460px; padding: var(--panel-lg); }
+.panel-body #download-form { display: flex; flex-direction: column; min-height: 0; }
+.panel-body #download-form > .dialog-header { flex: none; }
+.panel-body #download-form .download-fields { flex: 1; min-height: 0; overflow-y: auto; }
 .panel-body .download-fields { gap: var(--panel-md); margin: var(--panel-md) 0 var(--panel-lg); }
 .panel-body .field label { margin-bottom: var(--panel-xs); }
 .panel-body .download-location { gap: var(--panel-sm); }

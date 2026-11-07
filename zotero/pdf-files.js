@@ -5,6 +5,7 @@ var YanjiPDFFiles = (() => {
   const get = key => Zotero.Prefs.get(pref + key, true);
   const set = (key, value) => Zotero.Prefs.set(pref + key, value, true);
   const mappings = () => JSON.parse(get("journals") || "{}");
+  const kindMappings=()=>JSON.parse(get("kindFolders")||"{}");
   const rootPath = () => get("root") || "";
   const readerAvailable=()=>Zotero.isWin&&typeof YanjiPDFReader!=="undefined";
   const journalKey = value => value.normalize("NFKC").replace(/&(?:amp;)?/gi," and ").toLowerCase().replace(/[^\p{L}\p{N}]/gu,"");
@@ -57,6 +58,8 @@ var YanjiPDFFiles = (() => {
     const bound = parent(data.parentItemKey);
     const journal = (data.journal || bound?.getField("publicationTitle") || "").trim();
     const abbreviation = (data.abbreviation || bound?.getField("journalAbbreviation") || "").trim();
+    const articleKind=data.articleKind||"research";
+    if(!["research","review","dataset"].includes(articleKind))throw Error("文献类型无效。");
     const root = rootPath(), folders = [""], records = [];
     if (root) {
       async function walk(path, relative, depth) {
@@ -81,6 +84,13 @@ var YanjiPDFFiles = (() => {
     const pathKey=value=>{const key=value.replace(/\\/g,"/").replace(/\/$/,"");return Zotero.isWin?key.toLowerCase():key;};
     const byPath=new Map(records.map(record=>[pathKey(record.path),record]));
     const byFolder=new Map(records.map(record=>[record.relative,record]));
+    const categoryRoots={};
+    for(const[kind,pattern]of Object.entries({review:/^(?:surveys?|reviews?|综述)$/i,dataset:/^(?:datasource|datasets?|data|数据集|数据源)$/i})){
+      const found=records.filter(row=>row.relative&&pattern.test(row.label));
+      const explicit=kind==='dataset'?found.filter(row=>!/^data$/i.test(row.label)):found;
+      const candidates=explicit.length?explicit:found;
+      if(candidates.length===1)categoryRoots[kind]=candidates[0].relative;
+    }
     async function itemFolders(item) {
       const result=new Set();
       for(const file of await Zotero.Items.getAsync(item.getAttachments())) {
@@ -117,7 +127,20 @@ var YanjiPDFFiles = (() => {
       const learned=(matching.length?matching:codes.size===1?[...codes.values()]:[]).sort((a,b)=>b.count-a.count)[0];
       short=aliases.scores.has(key)&&/^(?:[A-Z0-9]{1,12}|npj[A-Z0-9]+)$/.test(selected.label) ? selected.label : learned?.value||abbreviation||aliases.short||selected.label;
     }
-    return {root,folders,journal,folder:selected?selected.relative:null,abbreviation:short,autoImport:typeof YanjiPDFImport!=="undefined",localImport:true,pickStatus:true,readerSave:readerAvailable()};
+    if(articleKind!=="research"){
+      const remembered=kindMappings()[articleKind+"|"+journalKey(journal)],base=categoryRoots[articleKind];
+      const inside=row=>base&&row&&(row.relative===base||row.relative.startsWith(base+"/"));
+      if(remembered&&byFolder.has(remembered))selected=byFolder.get(remembered);
+      else if(!inside(selected)){
+        const ranked=records.filter(row=>inside(row)&&row.relative!==base).map(row=>({row,score:aliases.scores.get(journalKey(row.label))||0})).filter(row=>row.score>0).sort((a,b)=>b.score-a.score);
+        if(ranked.length&&(ranked.length===1||ranked[0].score>ranked[1].score))selected=ranked[0].row;
+        else{
+          const general=records.filter(row=>inside(row)&&row.relative!==base&&!row.relative.slice(base.length+1).includes('/')&&/^(?:八仙过海|其他|综合|misc|general|others?)$/i.test(row.label));
+          selected=general.length===1?general[0]:byFolder.get(base);
+        }
+      }
+    }
+    return {root,folders,journal,folder:selected?selected.relative:null,abbreviation:short,categoryRoots,classifiedFolders:true,autoImport:typeof YanjiPDFImport!=="undefined",localImport:true,pickStatus:true,readerSave:readerAvailable()};
   }
   async function pickRoot() {
     const {FilePicker} = ChromeUtils.importESModule("chrome://zotero/content/modules/filePicker.mjs");
@@ -125,7 +148,7 @@ var YanjiPDFFiles = (() => {
     picker.init(Zotero.getMainWindow(), "选择文献库根目录", picker.modeGetFolder);
     if (rootPath()) picker.displayDirectory = rootPath();
     if (await picker.show() !== picker.returnOK) return {cancelled:true};
-    if (picker.file !== rootPath()) { set("root", picker.file); set("journals", "{}"); }
+    if (picker.file !== rootPath()) { set("root", picker.file); set("journals", "{}");set("kindFolders","{}"); }
     return {root:rootPath()};
   }
   function filename(value) {
@@ -150,9 +173,11 @@ var YanjiPDFFiles = (() => {
       throw Error("同名 PDF 已存在，未覆盖。请调整文件名，或在 Zotero 中关联已有文件。");
     }
     if (typeof data.journal !== "string" || data.journal.length > 500 || typeof data.abbreviation !== "string" || data.abbreviation.length > 100) throw Error("期刊信息无效。");
+    const articleKind=data.articleKind||"research";
+    if(!["research","review","dataset"].includes(articleKind))throw Error("文献类型无效。");
     const token = Zotero.Utilities.randomString(32);
     const temporaryName=data.filename.slice(0,-4).slice(0,116).replace(/[\uD800-\uDBFF]$/,"").replace(/[. ]+$/,"")+".pdf";
-    plans.set(token, {target, temporaryName, autoImport:data.autoImport===true, metadata, parentItemKey:data.parentItemKey || "", journal:data.journal, abbreviation:data.abbreviation, folder:data.folder, at:Date.now(), running:false});
+    plans.set(token, {target, temporaryName, autoImport:data.autoImport===true, metadata, parentItemKey:data.parentItemKey || "", journal:data.journal, abbreviation:data.abbreviation, folder:data.folder,articleKind, at:Date.now(), running:false});
     return {token, temporaryName:token+"/"+temporaryName,autoImport:data.autoImport===true,localImport:true,pickStatus:true,readerSave:readerAvailable()};
   }
   function pickStatus(data) {
@@ -219,7 +244,12 @@ var YanjiPDFFiles = (() => {
           attachmentKey = attachment.key;
         } catch (error) { Zotero.logError(error); warning = "PDF 已保存，关联 Zotero 失败：" + error.message; }
       }
-      if (plan.journal) { const saved = mappings(); for(const name of Object.keys(saved))if(journalKey(name)===journalKey(plan.journal))delete saved[name]; saved[plan.journal] = {folder:plan.folder, abbreviation:plan.abbreviation}; set("journals", JSON.stringify(saved)); }
+      if (plan.journal) {
+        const saved=mappings(),old=Object.entries(saved).find(([name])=>journalKey(name)===journalKey(plan.journal))?.[1];
+        for(const name of Object.keys(saved))if(journalKey(name)===journalKey(plan.journal))delete saved[name];
+        saved[plan.journal]=plan.articleKind==='research'?{folder:plan.folder,abbreviation:plan.abbreviation}:{...old,abbreviation:plan.abbreviation};set("journals",JSON.stringify(saved));
+        if(plan.articleKind!=='research'){const kinds=kindMappings();kinds[plan.articleKind+'|'+journalKey(plan.journal)]=plan.folder;set('kindFolders',JSON.stringify(kinds))}
+      }
       plan.result = {...imported,path:plan.target, attachmentKey, warning};
       if(!localFile){await IOUtils.remove(data.path);await IOUtils.remove(staging);}
       return plan.result;

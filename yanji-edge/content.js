@@ -293,7 +293,7 @@
   });
   chrome.runtime.onMessage.addListener((message, sender, respond) => {
     if (message.type === "PDF_VIEWER") { respond({ok:true,data:{isPDF:document.contentType === "application/pdf"}}); return; }
-    if (message.type === "PDF_DOCUMENT") { respond({ok:true, data:YanjiPDFDocument.describe()}); return; }
+    if (message.type === "PDF_DOCUMENT") { YanjiPDFDocument.prepare().then(data=>respond({ok:true,data}),error=>respond({ok:false,error:error.message})); return true; }
     if (message.type === "CONTEXT") {
       const reply = () => respond({ ok: true, data: { meta: metadata(), page, settings, diagnostics: { lastRestoreMS, restoreCount, renderedRanges: rendered.length, annotationBytes: new TextEncoder().encode(JSON.stringify(page.annotations)).byteLength, pageJSHeapBytes: performance.memory?.usedJSHeapSize || null } } });
       if (page) reply();
