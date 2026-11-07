@@ -4,6 +4,8 @@
     const url=new URL(value);
     const doi=url.hostname==="journals.sagepub.com"&&/^\/doi\/(?:(?:abs|full|pdf|epdf|epub|reader)\/)?(10\.[^?#]+?)\/?$/.exec(url.pathname)?.[1];
     if(doi){url.pathname="/doi/pdf/"+doi;url.searchParams.delete("download")}
+    const wiley=url.hostname==="onlinelibrary.wiley.com"&&/^\/doi\/(?:(?:abs|full|pdf|epdf|pdfdirect)\/)?(10\.[^?#]+?)\/?$/.exec(url.pathname)?.[1];
+    if(wiley){url.pathname="/doi/pdf/"+wiley;url.searchParams.delete("download")}
     return url;
   }
   function date(value) {
@@ -21,10 +23,10 @@
     const match = text.match(/^(\d{4})(?:[-/.](\d{1,2})(?:[-/.](\d{1,2}))?)?/);
     return match ? match[1] + (match[2] ? match[2].padStart(2, "0") : "") + (match[3] ? match[3].padStart(2, "0") : "") : "";
   }
-  function history(root) {
-    const host=new URL(root.URL||root.baseURI).hostname;
+  function history(root,host=new URL(root.URL||root.baseURI).hostname) {
     const copernicus=/(^|\.)copernicus\.org$/i.test(host);
-    const selector=copernicus?'#article-dates,.article-dates':/(^|\.)sciencedirect\.com$/i.test(host)?'.author-group,#author-group,.article-history,.publication-history,#publication-history,.dates':/(^|\.)tandfonline\.com$/i.test(host)?'.itemPageRangeHistory,.articleHistory,.article-history':'.article-history,[data-testid="article-history"]';
+    const mdpi=/(^|\.)mdpi\.com$/i.test(host),wiley=host==='onlinelibrary.wiley.com';
+    const selector=mdpi?'.pubhistory,.article-history,.m-accordion__body':wiley?'.publication-history,.epub-sections':copernicus?'#article-dates,.article-dates':/(^|\.)sciencedirect\.com$/i.test(host)?'.author-group,#author-group,.article-history,.publication-history,#publication-history,.dates':/(^|\.)tandfonline\.com$/i.test(host)?'.itemPageRangeHistory,.articleHistory,.article-history':'.article-history,[data-testid="article-history"]';
     const excluded='#yanji-root,.references,.bibliography,.ref-list,#recommended-articles,#cited-by,script,style';
     const fields=[...root.querySelectorAll(selector)].filter(n=>!n.closest(excluded)).map(n=>n.textContent);
     if(/(^|\.)(sciencedirect|tandfonline)\.com$/i.test(host))for(const node of root.querySelectorAll('p,span,li,div')){
@@ -33,7 +35,7 @@
     }
     const text=fields.join('\n');
     const value=label=>{const match=new RegExp('(?:'+label+')\\s*[:：]?\\s*(\\d{1,2}\\s*[A-Za-z]+\\s*\\d{4}|[A-Za-z]+\\s+\\d{1,2},?\\s*\\d{4}|\\d{4}[-/.]\\d{1,2}[-/.]\\d{1,2})','i').exec(text);return match?date(match[1]):''};
-    return {accepted:value('Accepted(?:\\s+on)?|接收日期|接受日期|录用日期'),published:value('Available\\s+online|Published\\s+online|First\\s+published(?:\\s+online)?|在线发表|公开日期'+(copernicus?'|Published':''))};
+    return {accepted:value('Accepted(?:\\s+on)?|接收日期|接受日期|录用日期'),published:value('Available\\s+online|Published\\s+online|First\\s+published(?:\\s+online)?|Version\\s+of\\s+Record\\s+online|在线发表|公开日期'+(copernicus||mdpi?'|Published':''))};
   }
   function filename({prefix, state = "T", important = false, date: day, dateType = "published", journal, keywords = "", title}) {
     if (prefix===undefined?!["T", "G", "L"].includes(state):typeof prefix!=="string"||!prefix||prefix.length>40||!/^[\p{L}\p{N}★↑!+]+(?:-[\p{L}\p{N}★↑!+]+)*$/u.test(prefix))throw Error("文献状态标识无效。");
@@ -53,6 +55,7 @@
     const ieee = articleURL.hostname === "ieeexplore.ieee.org";
     const ieeeID = ieee && (/\/document\/(\d+)/.exec(articleURL.pathname)?.[1] || articleURL.searchParams.get("arnumber"));
     const taylorDOI = /(^|\.)tandfonline\.com$/i.test(articleURL.hostname) && /^\/doi\/(?:full|abs|pdf|epdf)\/(10\.[^?#]+)/.exec(articleURL.pathname)?.[1];
+    const wileyDOI=articleURL.hostname==='onlinelibrary.wiley.com'&&/^\/doi\/(?:(?:abs|full|pdf|epdf|pdfdirect)\/)?(10\.[^?#]+?)\/?$/.exec(articleURL.pathname)?.[1];
     const mdpi = /(^|\.)mdpi\.com$/i.test(articleURL.hostname) && /^(\/\d{4}-\d{4}\/(\d+)\/\d+\/(\d+))(?:\/|$)/.exec(articleURL.pathname);
     const natureID = /(^|\.)nature\.com$/i.test(articleURL.hostname) && /^\/articles\/([^/.]+)/.exec(articleURL.pathname)?.[1];
     const copernicus = /(^|\.)copernicus\.org$/i.test(articleURL.hostname) && /^\/articles\/(\d+)\/(\d+)\/(\d{4})\//.exec(articleURL.pathname);
@@ -91,6 +94,7 @@
         if (url.hostname !== articleURL.hostname || !["/doi/pdf/" + taylorDOI,"/doi/epdf/" + taylorDOI].includes(url.pathname)) return;
         url.pathname = "/doi/pdf/" + taylorDOI;
       }
+      if(wileyDOI&&(url.hostname!==articleURL.hostname||url.pathname!=="/doi/pdf/"+wileyDOI))return;
       if (mdpi) {
         const gateway = url.hostname === articleURL.hostname && url.pathname === mdpi[1] + "/pdf";
         const deployed = /(^|\.)mdpi-res\.com$/i.test(url.hostname) && url.pathname.includes("/article_deploy/") && url.pathname.endsWith("-" + mdpi[2] + "-" + mdpi[3].padStart(5,"0") + ".pdf");
@@ -131,6 +135,7 @@
     if (!sources.size) {
       if (ieeeID) add("/stampPDF/getPDF.jsp?tp=&arnumber=" + ieeeID + "&ref=", "文章 PDF");
       else if (taylorDOI) add("/doi/pdf/" + taylorDOI, "文章 PDF");
+      else if (wileyDOI) add("/doi/pdf/" + wileyDOI, "文章 PDF");
       else if (mdpi) add(mdpi[1] + "/pdf", "文章 PDF");
       else if (reviewID && articleURL.pathname === "/forum") add("/pdf?id=" + encodeURIComponent(reviewID), "文章 PDF");
       else if(sageDOI)add("/doi/pdf/"+sageDOI,"文章 PDF");
@@ -155,6 +160,7 @@
       accepted:dates.accepted||accepted,
       articleKind,
       sourceHost:articleURL.hostname,
+      preferBrowserDownload:!!mdpi,
       canonical:root.querySelector('link[rel="canonical"]')?.href||articleURL.href,
       hasMetadata:!!(meta(["citation_title","dc.title"])||ieeeMetadata.publicationTitle),
       itemType:meta(["citation_conference_title"])&&!meta(["citation_journal_title"])||ieeeMetadata.isJournal===false?"conferencePaper":/(^|\.)arxiv\.org$/i.test(articleURL.hostname)?"preprint":"journalArticle",
@@ -166,6 +172,16 @@
   }
   async function prepare(root=document) {
     let info=describe(root);
+    if(!info.accepted&&new URL(root.URL||root.baseURI).hostname==='onlinelibrary.wiley.com'){
+      const details=root.querySelector('article[data-details]')?.getAttribute('data-details');
+      if(!details)return info;
+      const article=new URL(root.URL||root.baseURI),url=new URL(details,article),doi=/^\/doi\/(?:(?:abs|full)\/)?(10\..+?)\/?$/.exec(article.pathname)?.[1];
+      if(url.origin!==article.origin||url.pathname!=='/action/ajaxShowPubInfo'||url.searchParams.get('doi')?.toLowerCase()!==doi?.toLowerCase())throw Error('期刊文章信息地址不匹配。');
+      const response=await fetch(url.href,{credentials:'same-origin',signal:AbortSignal.timeout(6000)});
+      if(!response.ok)throw Error('期刊文章信息读取失败（'+response.status+'）。');
+      const parsed=new DOMParser().parseFromString(await response.text(),'text/html'),dates=history(parsed,article.hostname);
+      return {...info,accepted:dates.accepted||info.accepted,published:dates.published||info.published};
+    }
     if(info.accepted||!/(^|\.)sciencedirect\.com$/i.test(new URL(root.URL||root.baseURI).hostname))return info;
     const visible=n=>n.getClientRects().length>0&&getComputedStyle(n).visibility!=='hidden';
     const candidates=[...root.querySelectorAll('.author-group button,#author-group button,button[data-aa-name="show-more"],button#show-more-btn')].filter(n=>visible(n)&&/^(?:show more|显示更多|展开更多)$/i.test(clean(n.textContent)));
@@ -190,6 +206,15 @@
   }
   async function articleTab(tab) {
     const url = new URL(tab.url);
+    if(url.hostname==='onlinelibrary.wiley.com'&&/^\/doi\/(?:pdf|epdf|pdfdirect)\/10\./.test(url.pathname)){
+      const article=(await chrome.tabs.query({windowId:tab.windowId})).find(row=>{
+        if(!row.url||!URL.canParse(row.url))return false;
+        const other=new URL(row.url);
+        return other.hostname===url.hostname&&!/^\/doi\/(?:pdf|epdf|pdfdirect)\//.test(other.pathname)&&pdfURL(other).pathname===pdfURL(url).pathname;
+      });
+      if(!article)throw Error("请先打开这份 PDF 对应的文章正文页。");
+      return article;
+    }
     if(url.hostname==="journals.sagepub.com"&&/^\/doi\/pdf\/10\./.test(url.pathname)){
       const article=(await chrome.tabs.query({windowId:tab.windowId})).find(row=>{
         if(!row.url||!URL.canParse(row.url))return false;

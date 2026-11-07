@@ -5,7 +5,7 @@ var YanjiPDFDownload = (() => {
   const progress = (pageId,text) => chrome.storage.session.set({["pdfDownloadStart:" + pageId]:text});
   async function pdfSource(url, tabId, pageId, reader = false) {
     url=YanjiPDFDocument.pdfURL(url);
-    if(url.hostname==="journals.sagepub.com"&&/^\/doi\/pdf\/10\./.test(url.pathname)){
+    if(["journals.sagepub.com","onlinelibrary.wiley.com"].includes(url.hostname)&&/^\/doi\/pdf\/10\./.test(url.pathname)){
       const source=YanjiPDFDocument.pdfURL((await chrome.tabs.get(tabId)).url);
       if(source.hostname!==url.hostname||source.pathname!==url.pathname)throw Error("PDF 链接不属于当前文章，请返回文章页重试。");
     }
@@ -203,13 +203,14 @@ var YanjiPDFDownload = (() => {
         try{viewer=await YanjiPDFDocument.readTab(tab.id,"PDF_VIEWER")}
         catch(error){if(!/receiving end|could not establish|message port closed|extension context invalidated|接收端|无法建立连接/i.test(error.message))throw error}
         const location=new URL(tab.url);
-        // A ScienceDirect PDF kept open during an update loses its content listener; the native helper still checks the exact viewer and save dialog.
         const expectedPII=/\/science\/article\/pii\/([^/]+)/.exec(new URL(page.url).pathname)?.[1];
         const keptPII=/\/1-s2\.0-([^/]+)\/main\.pdf$/i.exec(location.pathname)?.[1];
         const sageSource=YanjiPDFDocument.pdfURL(page.url);
         const keptSage=location.hostname==="journals.sagepub.com"&&/^\/doi\/pdf\/10\./.test(location.pathname)&&sageSource.hostname===location.hostname&&sageSource.pathname===location.pathname;
         const keptPDF=viewer===undefined&&(keptSage||!!expectedPII&&keptPII===expectedPII&&/(^|\.)sciencedirectassets\.com$/i.test(location.hostname));
-        if(!keptPDF&&(!viewer?.ok||!viewer.data.isPDF))throw Error("当前页面不是已加载的 PDF，请完成网站验证后重试。");
+        // Wiley's PDF reader reports text/html; the native helper verifies the exact URL, PDF save control and exported PDF bytes.
+        const wileyReader=location.hostname==='onlinelibrary.wiley.com'&&/^\/doi\/pdf\/10\./.test(location.pathname)&&sageSource.hostname===location.hostname&&sageSource.pathname===location.pathname;
+        if(!wileyReader&&!keptPDF&&(!viewer?.ok||!viewer.data.isPDF))throw Error("当前页面不是已加载的 PDF，请完成网站验证后重试。");
         action={action:"reader",token:plan.token,url:tab.url};
         await progress(message.pageId,"正在通过 PDF 阅读器保存…");
       }else{

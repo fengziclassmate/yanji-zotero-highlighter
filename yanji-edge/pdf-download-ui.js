@@ -29,11 +29,30 @@
   function folders() {
     $d("root-path").textContent = libraryInfo.root || "选择文献库根目录";
     $d("root-path").title = libraryInfo.root;
-    $d("folder").innerHTML = '<option value="__choose__" disabled>选择保存文件夹</option>' + libraryInfo.folders.map(folder => `<option value="${Y.escape(folder)}">${Y.escape(folder || "根目录")}</option>`).join("");
     $d("folder").value = libraryInfo.folder ?? "__choose__";
+    paintFolderLevels();
     $d("journal").value = libraryInfo.abbreviation;
     $d("save").disabled = !libraryInfo.root;
   }
+  function paintFolderLevels(){
+    const selected=$d('folder').value,parts=selected==='__choose__'||!selected?[]:selected.split('/'),rows=[];
+    let parent='';
+    for(let depth=0;;depth++){
+      const prefix=parent?parent+'/':'',names=[...new Set(libraryInfo.folders.filter(path=>path.startsWith(prefix)&&path!==parent).map(path=>path.slice(prefix.length).split('/')[0]).filter(Boolean))];
+      const chosen=parts[depth]?prefix+parts[depth]:parent;
+      const empty=depth===0?'文献库根目录':'保存在此文件夹';
+      rows.push(`<select id="download-folder-level-${depth}" aria-label="第 ${depth+1} 级文件夹" data-depth="${depth}">${depth===0&&selected==='__choose__'?'<option value="__choose__" selected disabled>选择一级文件夹</option>':''}<option value="${Y.escape(parent)}" ${selected!=='__choose__'&&chosen===parent?'selected':''}>${empty}</option>${names.map(name=>`<option value="${Y.escape(prefix+name)}" ${chosen===prefix+name?'selected':''}>${Y.escape(name)}</option>`).join('')}</select>`);
+      if(!names.length||!parts[depth])break;
+      parent=chosen;
+      if(!libraryInfo.folders.some(path=>path.startsWith(parent+'/')))break;
+    }
+    $d('folder-levels').innerHTML=rows.join('');
+  }
+  $d('folder-levels').onchange=event=>{
+    if(!event.target.matches('select'))return;
+    $d('folder').value=event.target.value;
+    paintFolderLevels();$d('folder').dispatchEvent(new Event('change'));
+  };
   function paintJob() {
     if (!job) return;
     $d("save").disabled = job.state === "downloading" || !libraryInfo?.root;
@@ -108,7 +127,7 @@
     const group=Object.entries(libraryInfo.categoryRoots||{}).find(([,root])=>$d("folder").value===root||$d("folder").value.startsWith(root+"/"));
     if(group){$d("kind").value=group[0];documentInfo.articleKind=group[0];preview();return;}
     const leaf = $d("folder").value.split("/").at(-1).replace(/^\d+[-_ ]*/, "");
-    if (leaf) $d("journal").value = leaf;
+    if (leaf&&!libraryInfo.folders.some(path=>path.startsWith($d('folder').value+'/'))) $d("journal").value = leaf;
     preview();
   };
   $d("kind").onchange=async()=>{
@@ -126,7 +145,7 @@
     $d("local").disabled = true;
     try {
       if ($d("folder").value === "__choose__") throw Error("请选择保存文件夹。");
-      const reader=!localFile&&libraryInfo.readerSave===true&&/Edg\//.test(navigator.userAgent);
+      const reader=!localFile&&!documentInfo.preferBrowserDownload&&libraryInfo.readerSave===true&&/Edg\//.test(navigator.userAgent);
       if(!localFile&&!reader){const granted = await chrome.permissions.request({permissions:["downloads"]});if (!granted) throw Error("未允许下载文件。");}
       show("准备下载…");
       const importing=$d("link").checked&&(!libraryInfo.binding||autoImport);

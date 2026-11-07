@@ -143,6 +143,8 @@
 .panel-body .field label { margin-bottom: var(--panel-xs); }
 .panel-body .download-location { gap: var(--panel-sm); }
 .panel-body .download-status-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: var(--panel-md) var(--panel-sm); }
+.panel-body .download-folder-levels { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:var(--panel-sm); }
+:root.ui-tight .panel-body .download-folder-levels { grid-template-columns:1fr; }
 .panel-body #download-dialog .dialog-actions { bottom: calc(-1 * var(--panel-lg)); gap: var(--panel-sm); padding-bottom: var(--panel-md); }
 .panel-body .undo-toast { inset-inline: var(--panel-gutter); bottom: var(--panel-md); gap: var(--panel-sm); border-radius: var(--panel-surface-radius); padding: var(--panel-sm) var(--panel-md); }
 :root.ui-tight .panel-body { --panel-gutter: var(--panel-md); }
